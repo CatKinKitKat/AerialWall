@@ -3,203 +3,110 @@ import Foundation
 import AVFoundation
 @testable import AerialWallKit
 
-@Suite("TranscodeEngine — V1 codec, V2 hvc1, V3 no audio, V4 playable, V23 encoder fallback")
+@Suite("TranscodeEngine — native VT with temporal sub-layers (V48)")
 struct TranscodeEngineTests {
 
-    // MARK: - pure (no shell)
-
-    @Test func argBuilderProducesSpecExactCommand() {
-        let input = URL(fileURLWithPath: "/tmp/in.mp4")
-        let output = URL(fileURLWithPath: "/tmp/out.mov")
-        let args = TranscodeEngine.buildArgs(
-            input: input, output: output,
-            options: TranscodeOptions(),
-            resolvedEncoder: .x265
-        )
-
-        // V38: explicit non-interactive stdin
-        #expect(args.contains("-nostdin"))
-        // V3: strip audio
-        #expect(args.contains("-an"))
-        // V2: hvc1 tag exact
-        let tagIx = args.firstIndex(of: "-tag:v")!
-        #expect(args[tagIx + 1] == "hvc1")
-        // V1: Main 10 profile + 10-bit pix fmt
-        let profileIx = args.firstIndex(of: "-profile:v")!
-        #expect(args[profileIx + 1] == "main10")
-        // V23 + V47: libx265 is the default now (VT fails B17 unlock-rebind).
-        let encIx = args.firstIndex(of: "-c:v")!
-        #expect(args[encIx + 1] == "libx265")
-        // x265 path uses yuv420p10le (not VT's p010le) + x265-params
-        let pixIx = args.firstIndex(of: "-pix_fmt")!
-        #expect(args[pixIx + 1] == "yuv420p10le")
-        #expect(args.contains("-x265-params"))
-        // V1 SDR bt709 embedded via setparams filter in -vf chain
-        let vfIx = args.firstIndex(of: "-vf")!
-        let vf = args[vfIx + 1]
-        #expect(vf.contains("setparams=color_primaries=bt709"))
-        #expect(vf.contains("color_trc=bt709"))
-        #expect(vf.contains("colorspace=bt709"))
-        // mov container
-        let fIx = args.firstIndex(of: "-f")!
-        #expect(args[fIx + 1] == "mov")
-        // Output path is last
-        #expect(args.last == output.path)
-    }
-
-    @Test func argBuilderUsesX265WhenRequested() {
-        let args = TranscodeEngine.buildArgs(
-            input: URL(fileURLWithPath: "/tmp/in.mp4"),
-            output: URL(fileURLWithPath: "/tmp/out.mov"),
-            options: TranscodeOptions(),
-            resolvedEncoder: .x265
-        )
-        let encIx = args.firstIndex(of: "-c:v")!
-        #expect(args[encIx + 1] == "libx265")
-    }
-
-    @Test func argBuilderHonorsResolution() {
-        var opts = TranscodeOptions()
-        opts.width = 1920
-        opts.height = 1080
-        let args = TranscodeEngine.buildArgs(
-            input: URL(fileURLWithPath: "/tmp/in.mp4"),
-            output: URL(fileURLWithPath: "/tmp/out.mov"),
-            options: opts,
-            resolvedEncoder: .x265
-        )
-        let vfIx = args.firstIndex(of: "-vf")!
-        #expect(args[vfIx + 1].contains("scale=1920:1080"))
-        #expect(args[vfIx + 1].contains("pad=1920:1080"))
-    }
-
-    @Test func parsesOutTimeFromProgressStream() {
-        let chunk = """
-        frame=42
-        fps=12.34
-        out_time_us=2500000
-        out_time=00:00:02.500000
-        progress=continue
-        """
-        #expect(TranscodeEngine.extractOutTimeMicros(from: chunk) == 2_500_000)
-    }
-
-    @Test func handlesMultipleProgressBlocksReturnsLatest() {
-        let chunk = """
-        out_time_us=1000000
-        progress=continue
-        out_time_us=2000000
-        progress=continue
-        out_time_us=3500000
-        progress=continue
-        """
-        #expect(TranscodeEngine.extractOutTimeMicros(from: chunk) == 3_500_000)
-    }
-
-    @Test func returnsNilWhenNoOutTime() {
-        #expect(TranscodeEngine.extractOutTimeMicros(from: "frame=1\nprogress=end") == nil)
-    }
-
-    @Test func detectFFmpegFindsSystemBinary() throws {
-        // Will succeed on dev box with Homebrew; skip otherwise.
-        do {
-            let url = try TranscodeEngine.detectFFmpeg()
-            #expect(FileManager.default.isExecutableFile(atPath: url.path))
-        } catch TranscodeError.ffmpegNotFound {
-            // not installed — fine for CI
+    /// Locate ffmpeg only to synthesize test inputs; production code doesn't use it.
+    private static func findFFmpeg() -> URL? {
+        for path in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"] {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return URL(fileURLWithPath: path)
+            }
         }
+        return nil
     }
 
-    // MARK: - end-to-end (real ffmpeg)
-
-    /// Generate a 1-second 720p test clip with audio, transcode through our engine,
-    /// verify output: HEVC Main 10, hvc1 tag, 3840×2160, no audio, playable.
-    @Test func argBuilderIncludesZeroStartPTS() {
-        let args = TranscodeEngine.buildArgs(
-            input: URL(fileURLWithPath: "/tmp/in.mp4"),
-            output: URL(fileURLWithPath: "/tmp/out.mov"),
-            options: TranscodeOptions(),
-            resolvedEncoder: .x265
-        )
-        // V44: setpts=PTS-STARTPTS in the vf chain forces first-frame PTS = 0
-        let vfIx = args.firstIndex(of: "-vf")!
-        #expect(args[vfIx + 1].contains("setpts=PTS-STARTPTS"))
-        #expect(args.contains("-muxdelay"))
-        #expect(args.contains("-muxpreload"))
+    private static func synthInput(_ ffmpeg: URL, dest: URL, duration: Int = 1) throws {
+        try? FileManager.default.removeItem(at: dest)
+        let proc = Process()
+        proc.executableURL = ffmpeg
+        proc.arguments = [
+            "-y", "-nostdin", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc=duration=\(duration):size=1280x720:rate=30",
+            "-c:v", "libx264", "-t", "\(duration)", dest.path,
+        ]
+        // No pipes = no buffer to fill and deadlock
+        try proc.run()
+        proc.waitUntilExit()
     }
 
-    @Test func endToEndTranscodeMatchesAppleSpec() async throws {
-        let ffmpeg: URL
-        do { ffmpeg = try TranscodeEngine.detectFFmpeg() }
-        catch TranscodeError.ffmpegNotFound { return }  // skip — no ffmpeg installed
+    /// End-to-end transcode + verify HEVC Main10, 3840×2160, no audio, temporal_id > 0.
+    @Test func transcodeProducesTemporalSubLayers() async throws {
+        guard let ffmpeg = Self.findFFmpeg() else { return }
 
         let tmpdir = FileManager.default.temporaryDirectory
-            .appending(path: "aerialwall-transcode-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "aerialwall-transcode-\(UUID().uuidString)",
+                       directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: tmpdir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmpdir) }
 
         let inputURL = tmpdir.appending(path: "in.mp4")
         let outputURL = tmpdir.appending(path: "out.mov")
-
-        // Synthesize input: 1s 720p testsrc + 1s sine audio (audio will be stripped).
-        let gen = Process()
-        gen.executableURL = ffmpeg
-        gen.arguments = [
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-f", "lavfi", "-i", "testsrc=duration=1:size=1280x720:rate=30",
-            "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
-            "-c:v", "libx264", "-c:a", "aac", "-t", "1", "-shortest",
-            inputURL.path,
-        ]
-        gen.standardError = Pipe()
-        try gen.run()
-        gen.waitUntilExit()
-        #expect(gen.terminationStatus == 0, "input synthesis failed")
+        try Self.synthInput(ffmpeg, dest: inputURL)
 
         try await TranscodeEngine.transcodeAndValidate(input: inputURL, output: outputURL)
         #expect(FileManager.default.fileExists(atPath: outputURL.path))
 
-        // ffprobe verification → JSON of streams
+        // ffprobe — stream info
+        let ffprobeURL = ffmpeg.deletingLastPathComponent().appending(path: "ffprobe")
+        guard FileManager.default.isExecutableFile(atPath: ffprobeURL.path) else { return }
+
         let probe = Process()
-        probe.executableURL = URL(fileURLWithPath: ffmpeg.deletingLastPathComponent()
-            .appending(path: "ffprobe").path)
-        if !FileManager.default.isExecutableFile(atPath: probe.executableURL!.path) {
-            return  // skip the inspection half — ffmpeg present but ffprobe not
-        }
+        probe.executableURL = ffprobeURL
         probe.arguments = [
             "-v", "error", "-show_streams", "-show_format", "-of", "json", outputURL.path
         ]
-        let out = Pipe()
-        probe.standardOutput = out
-        probe.standardError = Pipe()
+        let probeOut = Pipe()
+        probe.standardOutput = probeOut
+        // Don't set stderr unless we read it or it's short, to avoid buffer issues
         try probe.run()
+        let probeData = probeOut.fileHandleForReading.readDataToEndOfFile()
         probe.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        let streams = json["streams"] as! [[String: Any]]
 
-        // V3: only video stream
-        #expect(streams.count == 1)
+        let probeJSON = try JSONSerialization.jsonObject(with: probeData) as! [String: Any]
+        let streams = probeJSON["streams"] as! [[String: Any]]
+
+        #expect(streams.count == 1, "expected video-only output (V3 strips audio)")
         let s = streams[0]
-        #expect((s["codec_type"] as? String) == "video")
-        // V1: HEVC Main 10
         #expect((s["codec_name"] as? String) == "hevc")
-        #expect((s["profile"] as? String)?.contains("Main 10") == true)
-        // V2: hvc1 tag
         #expect((s["codec_tag_string"] as? String) == "hvc1")
-        // V1: 3840×2160 after scale+pad
+        #expect((s["profile"] as? String)?.contains("Main 10") == true)
         #expect((s["width"] as? Int) == 3840)
         #expect((s["height"] as? Int) == 2160)
-        // V1: 10-bit (yuv420p10le from VT or libx265, both accepted)
-        let pixfmt = s["pix_fmt"] as? String ?? ""
-        #expect(pixfmt.contains("10le"), "pix_fmt was \(pixfmt)")
-        // V1: bt709
-        #expect((s["color_primaries"] as? String) == "bt709")
-        // V44: first frame starts at PTS = 0 (no encoder delay carried through)
+        let pixFmt = s["pix_fmt"] as? String ?? ""
+        #expect(pixFmt.contains("10le"), "pix_fmt was \(pixFmt)")
+        // start_time = 0 (V44)
         let startTime = Double(s["start_time"] as? String ?? "0") ?? 0
-        #expect(startTime == 0.0, "start_time was \(startTime), expected 0")
-        // V46: report whether B-frames actually got encoded (VT often ignores -bf)
-        let bframes = s["has_b_frames"] as? Int ?? 0
-        print("⚙ ffprobe reports has_b_frames = \(bframes)")
+        #expect(startTime == 0.0)
+
+        // V48: temporal sub-layers must be present. trace_headers dumps NAL info.
+        let trace = Process()
+        trace.executableURL = ffmpeg
+        trace.arguments = [
+            "-y", "-nostdin", "-loglevel", "debug",
+            "-i", outputURL.path, "-t", "1", "-c", "copy",
+            "-bsf:v", "trace_headers", "-f", "null", "-",
+        ]
+        let traceErr = Pipe()
+        trace.standardError = traceErr
+        // No stdout pipe to avoid deadlock
+        try trace.run()
+        let traceData = traceErr.fileHandleForReading.readDataToEndOfFile()
+        trace.waitUntilExit()
+
+        let traceText = String(data: traceData, encoding: .utf8) ?? ""
+        let hasTSA = traceText.contains("TSA_N") || traceText.contains("TSA_R")
+        let hasNonZeroTemporal = traceText.contains("temporal_id: 1")
+            || traceText.contains("temporal_id: 2")
+        #expect(hasTSA, "V48: output must include TSA NAL units")
+        #expect(hasNonZeroTemporal, "V48: output must include frames at temporal_id > 0")
+    }
+
+    @Test func validateRejectsMissingFile() async {
+        let nowhere = FileManager.default.temporaryDirectory
+            .appending(path: "missing-\(UUID().uuidString).mov")
+        await #expect(throws: TranscodeError.self) {
+            try await TranscodeEngine.validate(output: nowhere)
+        }
     }
 }

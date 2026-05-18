@@ -105,7 +105,8 @@ final class WallpaperLibrary {
             let draft = try await ImportService.prepareDraft(source: source)
             self.activeDraft = draft
         } catch {
-            self.importError = "Couldn't preview \"\(source.lastPathComponent)\": \(error)"
+            let detail = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            self.importError = detail
         }
     }
 
@@ -135,7 +136,7 @@ final class WallpaperLibrary {
             }
         } catch {
             placeholder.encodingProgress = nil
-            placeholder.errorMessage = "\(error)"
+            placeholder.errorMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
         }
 
         try? FileManager.default.removeItem(at: draft.previewThumbnailPath)

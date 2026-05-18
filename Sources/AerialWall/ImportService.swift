@@ -12,14 +12,26 @@ enum ImportService {
     typealias ProgressHandler = @Sendable (Double) -> Void
 
     static func prepareDraft(source: URL) async throws -> ImportDraft {
+        // Fast format gate — fail loud on WebM and other unsupported containers
+        // BEFORE we try to extract a thumbnail. AVAssetReader's tracks load
+        // throws -17913 for WebM on Tahoe.
+        let avAsset = AVURLAsset(url: source)
+        let tracks: [AVAssetTrack]
+        do {
+            tracks = try await avAsset.loadTracks(withMediaType: .video)
+        } catch {
+            throw TranscodeError.inputFormatUnsupported(source)
+        }
+        guard !tracks.isEmpty else {
+            throw TranscodeError.noVideoTrack(source)
+        }
+
         // Quick thumbnail to a tmp file. Cancellation deletes it.
         let tmpThumb = FileManager.default.temporaryDirectory
             .appending(path: "aerialwall-draft-\(UUID().uuidString).png")
         try await ThumbnailGenerator.generate(from: source, to: tmpThumb)
 
-        let avAsset = AVURLAsset(url: source)
         let duration = (try? await avAsset.load(.duration).seconds) ?? 0
-        let tracks = (try? await avAsset.loadTracks(withMediaType: .video)) ?? []
         let size = (try? await tracks.first?.load(.naturalSize)) ?? .zero
         let resolution = size.width > 0 && size.height > 0
             ? "\(Int(size.width))×\(Int(size.height))"
@@ -51,14 +63,9 @@ enum ImportService {
 
         progress?(0.02)
 
-        // Probe source duration so transcode can emit live progress.
-        let inputDuration = (try? await AVURLAsset(url: source).load(.duration).seconds) ?? 0
-
-        // T5 transcode (V1, V2, V3, V4). 0.02 … 0.85 ≈ long pole of the import.
-        var opts = TranscodeOptions()
-        opts.inputDurationSeconds = inputDuration > 0 ? inputDuration : nil
+        // T5 transcode (V1..V4, V48). 0.02 … 0.85 ≈ long pole of the import.
         try await TranscodeEngine.transcodeAndValidate(
-            input: source, output: kitVideoPath, options: opts
+            input: source, output: kitVideoPath
         ) { ratio in
             progress?(0.02 + ratio * 0.83)
         }

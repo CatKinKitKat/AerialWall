@@ -1,268 +1,157 @@
 import Foundation
 import AVFoundation
-
-public enum VideoEncoder: String, Sendable {
-    case auto
-    case videoToolbox = "hevc_videotoolbox"
-    case x265 = "libx265"
-}
+import VideoToolbox
+import CoreMedia
 
 public struct TranscodeOptions: Sendable {
     public var width: Int = 3840
     public var height: Int = 2160
-    /// Default 20M — Apple's own clips run ~12.4M but those are professionally
-    /// mastered originals. User imports often start from an already-lossy
-    /// source (web-encoded MP4 / WebM AV1); the extra headroom suppresses
-    /// the grain that double-compression at 12M produces.
-    public var bitrate: String = "20M"
-    public var encoder: VideoEncoder = .auto
-    /// Explicit ffmpeg binary path. `nil` ⇒ auto-detect via PATH-like search.
-    public var ffmpegPath: String? = nil
-    /// Total input duration in seconds. When set, `transcode()` emits live
-    /// progress values 0…1 derived from ffmpeg's `out_time_us` reports.
-    /// Without this, `transcode()` produces no progress events.
-    public var inputDurationSeconds: Double? = nil
-
+    /// Target average bitrate in bits/sec. Apple stock encodes ~12.4 Mbps.
+    public var bitrate: Int = 20_000_000
     public init() {}
+}
+
+public enum TranscodeError: Error, Equatable {
+    case noVideoTrack(URL)
+    case inputFormatUnsupported(URL)
+    case writerSetupFailed(String)
+    case readerSetupFailed(String)
+    case encodeFailed(String)
+    case outputNotPlayable(URL)
+}
+
+extension TranscodeError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .inputFormatUnsupported(let url):
+            return "Couldn't read \"\(url.lastPathComponent)\" — this container or codec isn't supported by macOS AVFoundation. Try converting to .mp4 or .mov first (e.g. with HandBrake)."
+        case .noVideoTrack(let url):
+            return "\"\(url.lastPathComponent)\" has no video track."
+        case .writerSetupFailed(let s): return "Encoder setup failed: \(s)"
+        case .readerSetupFailed(let s): return "Decoder setup failed: \(s)"
+        case .encodeFailed(let s):      return "Encoding failed: \(s)"
+        case .outputNotPlayable(let u): return "Encoded file isn't playable: \(u.lastPathComponent)"
+        }
+    }
 }
 
 public typealias TranscodeProgress = @Sendable (Double) -> Void
 
-public enum TranscodeError: Error, Equatable {
-    case ffmpegNotFound(searched: [String])
-    case transcodeFailed(exitCode: Int32, stderrTail: String)
-    case outputNotPlayable(URL)
-    case outputValidationFailed(reason: String)
-}
-
+/// Native HEVC encoder. Uses `AVAssetWriter` + VideoToolbox with
+/// `kVTCompressionPropertyKey_BaseLayerFrameRate` to produce 2-layer
+/// hierarchical HEVC (TSA pictures at `temporal_id 1`) — required by
+/// macOS WallpaperAerialsExtension for the unlock-fade still frame (B17,
+/// V48). Scale-and-pad to target dimensions via `AVMutableVideoComposition`
+/// so we don't need ffmpeg in the runtime path at all.
 public enum TranscodeEngine {
 
-    /// Search order: explicit option > AERIALWALL_FFMPEG env > common Homebrew paths > /usr/bin/ffmpeg.
-    /// Bundled FFmpegKit binary slots in here at T16.
-    public static func detectFFmpeg(_ explicit: String? = nil) throws -> URL {
-        let candidates: [String] = [
-            explicit,
-            ProcessInfo.processInfo.environment["AERIALWALL_FFMPEG"],
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg",
-        ].compactMap { $0 }
-
-        for path in candidates {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return URL(fileURLWithPath: path)
-            }
-        }
-        throw TranscodeError.ffmpegNotFound(searched: candidates)
-    }
-
-    /// Build the canonical ffmpeg command line per §I transcode params. Pure — no IO.
-    /// Tested in isolation; the actual `transcode` call uses these args verbatim.
-    public static func buildArgs(
-        input: URL,
-        output: URL,
-        options: TranscodeOptions = .init(),
-        resolvedEncoder: VideoEncoder
-    ) -> [String] {
-        precondition(resolvedEncoder != .auto, "resolvedEncoder must be concrete")
-        // V1 SDR bt709 via `setparams` filter (output-level `-color_*` flags
-        // are unreliably propagated). V44: `setpts=PTS-STARTPTS` forces first-
-        // frame PTS to 0 — wallpaper extension seeks to t=0 for the unlock-
-        // fade still frame (B14).
-        let vf = "scale=\(options.width):\(options.height):force_original_aspect_ratio=decrease," +
-            "pad=\(options.width):\(options.height):(ow-iw)/2:(oh-ih)/2," +
-            "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv," +
-            "setpts=PTS-STARTPTS"
-
-        // V47: VT-specific pix_fmt is `p010le`; libx265 uses `yuv420p10le`.
-        let pixFmt = resolvedEncoder == .videoToolbox ? "p010le" : "yuv420p10le"
-
-        var args: [String] = [
-            "-y",
-            "-nostdin",                                          // V38
-            "-progress", "pipe:1",
-            "-nostats",
-            "-i", input.path,
-            "-an",                                              // V3
-            "-vf", vf,
-            "-c:v", resolvedEncoder.rawValue,                   // V23
-            "-tag:v", "hvc1",                                   // V2
-            "-profile:v", "main10",                             // V1
-            "-pix_fmt", pixFmt,                                 // V1, V47
-            "-b:v", options.bitrate,
-        ]
-
-        // V47: encoder-specific options.
-        // hevc_videotoolbox produces .mov that fails wallpaper-extension still-
-        // frame extraction on unlock (B17). libx265 is now the default; VT is
-        // retained as a fallback / future opt-in.
-        if resolvedEncoder == .x265 {
-            // Apple stock: has_b_frames=4, level=5.2.1. -preset fast keeps the
-            // encode tractable on 4K Main 10 (~3× realtime on M-series; far
-            // faster than -preset medium which is 10×+).
-            args += [
-                "-preset", "fast",
-                "-x265-params", "bframes=4:ref=4:level-idc=5.2:log-level=error",
-            ]
-        } else {
-            args += ["-bf", "4", "-refs", "4"]                  // V46
-        }
-
-        args += [
-            "-muxdelay", "0", "-muxpreload", "0",                // V44
-            "-movflags", "+faststart",
-            "-f", "mov",
-            output.path,
-        ]
-        return args
-    }
-
-    /// V47: `.auto` now resolves to `.x265` (software) primarily. VT was the
-    /// original default but its output fails wallpaper-extension still-frame
-    /// extraction on unlock (B17 — confirmed via Test C: even Apple's own
-    /// content re-encoded through VT goes gray). `.videoToolbox` remains
-    /// explicitly selectable but is no longer the auto choice.
-    public static func resolveEncoder(_ requested: VideoEncoder, ffmpeg: URL) throws -> VideoEncoder {
-        switch requested {
-        case .videoToolbox, .x265: return requested
-        case .auto:
-            let proc = Process()
-            proc.executableURL = ffmpeg
-            proc.arguments = ["-hide_banner", "-encoders"]
-            let out = Pipe()
-            proc.standardOutput = out
-            proc.standardError = Pipe()
-            try proc.run()
-            proc.waitUntilExit()
-            let data = out.fileHandleForReading.readDataToEndOfFile()
-            let text = String(data: data, encoding: .utf8) ?? ""
-            return text.contains("libx265") ? .x265 : .videoToolbox
-        }
-    }
-
-    /// V37: thread-safe buffer for streamed stderr/stdout drainage.
-    /// `Process` + `Pipe` deadlocks if the kernel pipe buffer fills (~64KB) and
-    /// nothing reads from it — see B8.
-    private final class LogCollector: @unchecked Sendable {
-        private let lock = NSLock()
-        private var data = Data()
-        func append(_ chunk: Data) {
-            lock.lock(); defer { lock.unlock() }
-            data.append(chunk)
-        }
-        func tail(_ count: Int) -> String {
-            lock.lock(); defer { lock.unlock() }
-            let suffix = data.suffix(count)
-            return String(data: Data(suffix), encoding: .utf8) ?? ""
-        }
-    }
-
-    /// Parse `key=value` chunks ffmpeg emits when invoked with `-progress pipe:1`.
-    /// Returns the latest `out_time_us` value or nil if the chunk has no such line.
-    static func extractOutTimeMicros(from chunk: String) -> Int64? {
-        var latest: Int64? = nil
-        for line in chunk.split(separator: "\n") {
-            if let eq = line.firstIndex(of: "="),
-               line[line.startIndex..<eq] == "out_time_us",
-               let v = Int64(line[line.index(after: eq)...]) {
-                latest = v
-            }
-        }
-        return latest
-    }
-
-    /// Run ffmpeg. Throws on non-zero exit with stderr tail captured.
-    /// If `options.inputDurationSeconds` is set and `progress` is provided,
-    /// emits 0…1 values derived from ffmpeg's `-progress pipe:1` stream.
     public static func transcode(
         input: URL,
         output: URL,
         options: TranscodeOptions = .init(),
         progress: TranscodeProgress? = nil
     ) async throws {
-        let ffmpeg = try detectFFmpeg(options.ffmpegPath)
-        let encoder = try resolveEncoder(options.encoder, ffmpeg: ffmpeg)
-        let args = buildArgs(input: input, output: output, options: options, resolvedEncoder: encoder)
+        let asset = AVURLAsset(url: input)
+        // AVAssetReader doesn't support WebM (and a few other containers) on
+        // Tahoe; `load(.isReadable)` throws -17913 in that case.
+        let tracks: [AVAssetTrack]
+        do {
+            tracks = try await asset.loadTracks(withMediaType: .video)
+        } catch {
+            throw TranscodeError.inputFormatUnsupported(input)
+        }
+        guard let videoTrack = tracks.first else {
+            throw TranscodeError.noVideoTrack(input)
+        }
 
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        let nominalFps = try await videoTrack.load(.nominalFrameRate)
+        let srcFps = Double(nominalFps > 0 ? nominalFps : 30)
+        let duration = try await asset.load(.duration)
+        let durationSec = duration.seconds
+
+        // Compose scale+pad transform: aspect-fit into renderSize, black bars.
+        let composition = makeComposition(
+            source: videoTrack,
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform,
+            srcFps: srcFps,
+            duration: duration,
+            targetWidth: options.width,
+            targetHeight: options.height
+        )
+
+        try? FileManager.default.removeItem(at: output)
         try FileManager.default.createDirectory(
             at: output.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            let proc = Process()
-            proc.executableURL = ffmpeg
-            proc.arguments = args
-            let errPipe = Pipe()
-            let outPipe = Pipe()
-            proc.standardError = errPipe
-            proc.standardOutput = outPipe
-
-            let collector = LogCollector()
-
-            // V37: drain continuously to avoid fill-buffer deadlock. ffmpeg
-            // writes verbose progress info to stderr; without this the kernel
-            // pipe buffer fills and ffmpeg blocks on write() forever.
-            errPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    handle.readabilityHandler = nil
-                } else {
-                    collector.append(chunk)
-                }
-            }
-            // stdout carries the `-progress pipe:1` stream. Parse `out_time_us`
-            // and emit normalized 0…1 progress when input duration is known.
-            outPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    handle.readabilityHandler = nil
-                    return
-                }
-                guard
-                    let progress,
-                    let durationSec = options.inputDurationSeconds, durationSec > 0,
-                    let text = String(data: chunk, encoding: .utf8),
-                    let outTimeUs = extractOutTimeMicros(from: text)
-                else { return }
-                let ratio = min(1.0, max(0.0, Double(outTimeUs) / (durationSec * 1_000_000)))
-                progress(ratio)
-            }
-
-            proc.terminationHandler = { p in
-                errPipe.fileHandleForReading.readabilityHandler = nil
-                outPipe.fileHandleForReading.readabilityHandler = nil
-                if p.terminationStatus == 0 {
-                    cont.resume()
-                } else {
-                    cont.resume(throwing: TranscodeError.transcodeFailed(
-                        exitCode: p.terminationStatus,
-                        stderrTail: collector.tail(2000)
-                    ))
-                }
-            }
-            do {
-                try proc.run()
-            } catch {
-                cont.resume(throwing: error)
-            }
-        }
-    }
-
-    /// V4: confirm the produced file is something AVFoundation will actually play.
-    public static func validate(output: URL) async throws {
-        let asset = AVURLAsset(url: output)
+        let writer: AVAssetWriter
         do {
-            let playable = try await asset.load(.isPlayable)
-            guard playable else { throw TranscodeError.outputNotPlayable(output) }
-        } catch let e as TranscodeError {
-            throw e
+            writer = try AVAssetWriter(outputURL: output, fileType: .mov)
         } catch {
-            throw TranscodeError.outputValidationFailed(reason: "\(error)")
+            throw TranscodeError.writerSetupFailed("\(error)")
         }
+
+        let writerInput = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: videoOutputSettings(options: options, srcFps: srcFps)
+        )
+        writerInput.expectsMediaDataInRealTime = false
+        writer.add(writerInput)
+
+        let reader: AVAssetReader
+        do {
+            reader = try AVAssetReader(asset: asset)
+        } catch {
+            throw TranscodeError.readerSetupFailed("\(error)")
+        }
+        let readerSettings: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String:
+                kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+        ]
+        let trackOutput = AVAssetReaderVideoCompositionOutput(
+            videoTracks: [videoTrack],
+            videoSettings: readerSettings
+        )
+        trackOutput.videoComposition = composition
+        reader.add(trackOutput)
+
+        guard writer.startWriting() else {
+            throw TranscodeError.encodeFailed(
+                writer.error?.localizedDescription ?? "writer.startWriting failed")
+        }
+        writer.startSession(atSourceTime: .zero)
+        guard reader.startReading() else {
+            throw TranscodeError.encodeFailed(
+                reader.error?.localizedDescription ?? "reader.startReading failed")
+        }
+
+        try await pumpSamples(
+            reader: reader,
+            input: writerInput,
+            output: trackOutput,
+            durationSec: durationSec,
+            progress: progress
+        )
+
+        try await finishWriting(writer: writer)
     }
 
-    /// Convenience: full pipeline — transcode then validate.
+    /// V4: `AVURLAsset.isPlayable` post-encode check.
+    public static func validate(output: URL) async throws {
+        guard FileManager.default.fileExists(atPath: output.path) else {
+            throw TranscodeError.outputNotPlayable(output)
+        }
+        let asset = AVURLAsset(url: output)
+        let playable: Bool
+        do { playable = try await asset.load(.isPlayable) }
+        catch { throw TranscodeError.outputNotPlayable(output) }
+        guard playable else { throw TranscodeError.outputNotPlayable(output) }
+    }
+
     public static func transcodeAndValidate(
         input: URL,
         output: URL,
@@ -271,5 +160,152 @@ public enum TranscodeEngine {
     ) async throws {
         try await transcode(input: input, output: output, options: options, progress: progress)
         try await validate(output: output)
+    }
+
+    // MARK: - private
+
+    private static func videoOutputSettings(
+        options: TranscodeOptions,
+        srcFps: Double
+    ) -> [String: Any] {
+        // V48: 2-layer hierarchical HEVC. WallpaperAerialsExtension's
+        // video-sample-reader filters frames by temporal_id; single-layer
+        // output gets skipped wholesale → gray on unlock (B17). Set
+        // BaseLayerFrameRate to half source fps so VT emits TRAIL_R at
+        // temporal_id 0 plus TSA_N at temporal_id 1.
+        let compression: [String: Any] = [
+            AVVideoAverageBitRateKey: options.bitrate,
+            AVVideoMaxKeyFrameIntervalKey: 60,
+            AVVideoExpectedSourceFrameRateKey: Int(srcFps.rounded()),
+            AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel as String,
+            AVVideoAllowFrameReorderingKey: true,
+            kVTCompressionPropertyKey_BaseLayerFrameRate as String: srcFps / 2.0,
+        ]
+        return [
+            AVVideoCodecKey: AVVideoCodecType.hevc,
+            AVVideoWidthKey: options.width,
+            AVVideoHeightKey: options.height,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+            ],
+            AVVideoCompressionPropertiesKey: compression,
+        ]
+    }
+
+    private static func makeComposition(
+        source videoTrack: AVAssetTrack,
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        srcFps: Double,
+        duration: CMTime,
+        targetWidth: Int,
+        targetHeight: Int
+    ) -> AVMutableVideoComposition {
+        let composition = AVMutableVideoComposition()
+        composition.renderSize = CGSize(width: targetWidth, height: targetHeight)
+        composition.frameDuration = CMTime(
+            value: 1, timescale: CMTimeScale(max(srcFps.rounded(), 1))
+        )
+
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        instruction.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+
+        // Source dimensions after the track's preferred transform (handles
+        // rotated sources like portrait phone video).
+        let orientedSize = naturalSize.applying(preferredTransform)
+        let srcW = abs(orientedSize.width)
+        let srcH = abs(orientedSize.height)
+
+        // Aspect-fit: largest scale that fits within target.
+        let scale = min(Double(targetWidth) / srcW, Double(targetHeight) / srcH)
+        let scaledW = srcW * scale
+        let scaledH = srcH * scale
+        let offsetX = (Double(targetWidth) - scaledW) / 2.0
+        let offsetY = (Double(targetHeight) - scaledH) / 2.0
+
+        let transform = preferredTransform
+            .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+            .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
+
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+        layerInstruction.setTransform(transform, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        composition.instructions = [instruction]
+        return composition
+    }
+
+    private static func pumpSamples(
+        reader: AVAssetReader,
+        input: AVAssetWriterInput,
+        output trackOutput: AVAssetReaderVideoCompositionOutput,
+        durationSec: Double,
+        progress: TranscodeProgress?
+    ) async throws {
+        final class AtomicState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _isFinished = false
+            func finish() -> Bool {
+                lock.lock(); defer { lock.unlock() }
+                if _isFinished { return false }
+                _isFinished = true
+                return true
+            }
+        }
+        let state = AtomicState()
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            nonisolated(unsafe) let r = reader
+            nonisolated(unsafe) let to = trackOutput
+            nonisolated(unsafe) let wi = input
+
+            let queue = DispatchQueue(label: "TranscodeEngine.encode")
+            wi.requestMediaDataWhenReady(on: queue) {
+                while wi.isReadyForMoreMediaData {
+                    if let sample = to.copyNextSampleBuffer() {
+                        if !wi.append(sample) {
+                            if state.finish() {
+                                wi.markAsFinished()
+                                cont.resume(throwing: TranscodeError.encodeFailed("Writer append failed: \(wi.description)"))
+                            }
+                            return
+                        }
+                        if let progress, durationSec > 0 {
+                            let pts = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                            if pts.isFinite {
+                                progress(min(1.0, max(0.0, pts / durationSec)))
+                            }
+                        }
+                    } else {
+                        if state.finish() {
+                            wi.markAsFinished()
+                            if r.status == .failed {
+                                cont.resume(throwing: TranscodeError.encodeFailed(r.error?.localizedDescription ?? "Reader failed"))
+                            } else {
+                                cont.resume()
+                            }
+                        }
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private static func finishWriting(writer: AVAssetWriter) async throws {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            nonisolated(unsafe) let w = writer
+            w.finishWriting {
+                if w.status == .completed {
+                    cont.resume()
+                } else {
+                    cont.resume(throwing: TranscodeError.encodeFailed(
+                        w.error?.localizedDescription ?? "writer status \(w.status.rawValue)"
+                    ))
+                }
+            }
+        }
     }
 }

@@ -7,9 +7,11 @@ import ImageIO
 struct ThumbnailGeneratorTests {
 
     @Test func generatesPNGFromSyntheticClip() async throws {
-        let ffmpeg: URL
-        do { ffmpeg = try TranscodeEngine.detectFFmpeg() }
-        catch TranscodeError.ffmpegNotFound { return }
+        // Locate ffmpeg only to synthesize the test input — production thumbnail
+        // path uses AVAssetImageGenerator and doesn't need ffmpeg.
+        let candidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+        guard let ffmpegPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { return }
+        let ffmpeg = URL(fileURLWithPath: ffmpegPath)
 
         let tmp = FileManager.default.temporaryDirectory
             .appending(path: "aerialwall-thumb-\(UUID().uuidString)", directoryHint: .isDirectory)
