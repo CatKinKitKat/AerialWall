@@ -69,6 +69,7 @@ public enum TranscodeEngine {
             "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
         return [
             "-y",
+            "-nostdin",                                          // V38: ⊥ tty stdin handling — hangs in tcsetattr when run as subprocess
             "-progress", "pipe:1",                              // stream progress to stdout
             "-nostats",                                          // suppress per-line stderr noise
             "-i", input.path,

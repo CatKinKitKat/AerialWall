@@ -17,6 +17,8 @@ struct TranscodeEngineTests {
             resolvedEncoder: .videoToolbox
         )
 
+        // V38: explicit non-interactive stdin
+        #expect(args.contains("-nostdin"))
         // V3: strip audio
         #expect(args.contains("-an"))
         // V2: hvc1 tag exact
