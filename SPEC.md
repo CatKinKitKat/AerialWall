@@ -213,6 +213,7 @@ V33: UI components → native AppKit/SwiftUI only. ⊥ custom titlebar, ⊥ hidd
 V34: only non-system UI tweak permitted = thumbnail corner radius 8pt. Everything else system-default
 V35: ⊥ helper-install onboarding step (no helper exists on Tahoe — V6). Onboarding shows only when `Constants.entriesJSONPath` is absent, & lists "Open System Settings → Wallpaper" steps
 V36: user-facing path text → `~/Library/Application Support/AerialWall/...` (V22). ⊥ "/Users/Shared/AerialWall/..." in any UI string
+V37: subprocess pipes (`stdout` & `stderr`) → drain continuously via `FileHandle.readabilityHandler`. ⊥ accumulate to EOF without reading (kernel pipe buffer ~64KB → blocking write deadlock on chatty subprocesses like ffmpeg)
 
 ## §T
 
@@ -250,4 +251,5 @@ B4 |2026-05-18|v1 implicitly assumed `accessibilityLabel` = display name. Live p
 B5 |2026-05-18|v1 V11 said "uuid lowercased". Apple uses UPPERCASE UUIDs in `entries.json:id` + filenames.       |V7
 B6 |2026-05-18|v1 §13.3 prescribed a SQLite-schema-probe CLI (T3). Moot — no SQLite. Repurposed T3 as JSON-schema probe + version-gate. |T3
 B7 |2026-05-18|External GUI/UX spec arrived describing privileged-helper onboarding, /Users/Shared paths, "Base Apple asset" slot-hook picker — all macOS-15-era assumptions that don't apply on Tahoe (V6, V22). Saved to GUI.md with §Tahoe reconciliation appendix overriding 6 items (R1–R6). |V32,V33,V34,V35,V36
+B8 |2026-05-18|TranscodeEngine import hung at 5% for 7+ minutes on a 4K AV1 WebM. ffmpeg process ran at 0.0% CPU. Cause: stderr `Pipe()` captured but never read while the process ran; kernel pipe buffer filled (~64KB) and ffmpeg blocked on `write(2)` forever. terminationHandler never fired. |V37
 ```

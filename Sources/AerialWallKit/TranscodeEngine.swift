@@ -96,6 +96,23 @@ public enum TranscodeEngine {
         }
     }
 
+    /// V37: thread-safe buffer for streamed stderr/stdout drainage.
+    /// `Process` + `Pipe` deadlocks if the kernel pipe buffer fills (~64KB) and
+    /// nothing reads from it — see B8.
+    private final class LogCollector: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        func append(_ chunk: Data) {
+            lock.lock(); defer { lock.unlock() }
+            data.append(chunk)
+        }
+        func tail(_ count: Int) -> String {
+            lock.lock(); defer { lock.unlock() }
+            let suffix = data.suffix(count)
+            return String(data: Data(suffix), encoding: .utf8) ?? ""
+        }
+    }
+
     /// Run ffmpeg. Throws on non-zero exit with stderr tail captured.
     public static func transcode(
         input: URL,
@@ -116,18 +133,40 @@ public enum TranscodeEngine {
             proc.executableURL = ffmpeg
             proc.arguments = args
             let errPipe = Pipe()
+            let outPipe = Pipe()
             proc.standardError = errPipe
-            proc.standardOutput = Pipe()
+            proc.standardOutput = outPipe
+
+            let collector = LogCollector()
+
+            // V37: drain continuously to avoid fill-buffer deadlock. ffmpeg
+            // writes verbose progress info to stderr; without this the kernel
+            // pipe buffer fills and ffmpeg blocks on write() forever.
+            errPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    handle.readabilityHandler = nil
+                } else {
+                    collector.append(chunk)
+                }
+            }
+            outPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    handle.readabilityHandler = nil
+                }
+                // stdout discarded — ffmpeg writes nothing useful there with current flags
+            }
 
             proc.terminationHandler = { p in
+                errPipe.fileHandleForReading.readabilityHandler = nil
+                outPipe.fileHandleForReading.readabilityHandler = nil
                 if p.terminationStatus == 0 {
                     cont.resume()
                 } else {
-                    let data = errPipe.fileHandleForReading.readDataToEndOfFile()
-                    let stderr = String(data: data, encoding: .utf8) ?? ""
-                    let tail = String(stderr.suffix(2000))
                     cont.resume(throwing: TranscodeError.transcodeFailed(
-                        exitCode: p.terminationStatus, stderrTail: tail
+                        exitCode: p.terminationStatus,
+                        stderrTail: collector.tail(2000)
                     ))
                 }
             }
