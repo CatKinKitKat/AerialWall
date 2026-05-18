@@ -91,22 +91,32 @@ enum ImportService {
 
         // T4 inject into entries.json. V27: include the AerialWall category in
         // the same atomic write — idempotent if it's already present.
+        //
+        // V41: URLs are synthesized https:// strings matching Apple's pattern,
+        // NOT file:// to the local files. The wallpaper runtime auto-discovers
+        // the local mov/png at videos/<UUID>.mov + thumbnails/<UUID>.png by
+        // UUID convention; the URL is only used as a download fallback. file://
+        // URLs cause initial selection to work but unlock-rebind to fail with
+        // a gray fallback (B12).
+        let previewURL = "https://sylvan.apple.com/aerialwall/\(uuid)/thumbnail.png"
+        let videoURL = "https://sylvan.apple.com/aerialwall/\(uuid)/video.mov"
+
         let injectionAsset = Asset(
             id: uuid,
             accessibilityLabel: metadata.name,
             categories: [Constants.AerialWallCategory.categoryID],
             subcategories: [Constants.AerialWallCategory.subcategoryID],
-            includeInShuffle: false,
-            localizedNameKey: metadata.name,                // V9: rendered literally
-            preferredOrder: -100,
-            previewImage: appleThumbPath.absoluteString,
+            includeInShuffle: true,                          // match Apple's default
+            localizedNameKey: metadata.name,                 // V9: rendered literally
+            preferredOrder: 1,                               // match Apple's small-positive convention
+            previewImage: previewURL,
             shotID: "AERIALWALL_\(uuid.prefix(8))",
             showInTopLevel: true,
-            urlSDR4K240: appleVideoPath.absoluteString
+            urlSDR4K240: videoURL
         )
         let aerialWallCategory = InjectionEngine.makeAerialWallCategory(
             representativeAssetID: uuid,
-            previewImageURL: appleThumbPath.absoluteString
+            previewImageURL: previewURL
         )
         try InjectionEngine.inject(injectionAsset, ensureCategory: aerialWallCategory)
         progress?(0.98)
