@@ -84,12 +84,15 @@ public enum TranscodeEngine {
             "-i", input.path,
             "-an",                                              // V3
             "-vf", vf,
-            "-r", "240",                                         // V45: match Apple's 240fps timebase (B15)
+            // V45 (-r 240) reverted — 30→240fps frame duplication didn't fix B14
+            // and made transcodes ~5× slower.
             "-c:v", resolvedEncoder.rawValue,                   // V23
             "-tag:v", "hvc1",                                   // V2
             "-profile:v", "main10",                             // V1
             "-pix_fmt", "p010le",                               // V1 (10-bit)
             "-b:v", options.bitrate,
+            "-bf", "4",                                          // V46: B-frames (Apple's encode has 4)
+            "-refs", "4",
             "-muxdelay", "0", "-muxpreload", "0",                // V44: no muxer-side preroll padding
             "-movflags", "+faststart",
             "-f", "mov",

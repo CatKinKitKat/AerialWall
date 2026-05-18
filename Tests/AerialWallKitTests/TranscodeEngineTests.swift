@@ -196,7 +196,8 @@ struct TranscodeEngineTests {
         // V44: first frame starts at PTS = 0 (no encoder delay carried through)
         let startTime = Double(s["start_time"] as? String ?? "0") ?? 0
         #expect(startTime == 0.0, "start_time was \(startTime), expected 0")
-        // V45: 240fps timebase matches Apple
-        #expect((s["r_frame_rate"] as? String) == "240/1")
+        // V46: report whether B-frames actually got encoded (VT often ignores -bf)
+        let bframes = s["has_b_frames"] as? Int ?? 0
+        print("⚙ ffprobe reports has_b_frames = \(bframes)")
     }
 }
