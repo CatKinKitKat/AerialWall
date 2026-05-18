@@ -28,6 +28,24 @@ struct InjectionEngineTests {
         )
     }
 
+    /// Variant whose categories/subcategories reference the AerialWall custom
+    /// category — for tests that exercise upsertCategory/maintaining logic.
+    private func aerialWallAsset(id: String) -> Asset {
+        Asset(
+            id: id,
+            accessibilityLabel: "AerialWall Test",
+            categories: [Constants.AerialWallCategory.categoryID],
+            subcategories: [Constants.AerialWallCategory.subcategoryID],
+            includeInShuffle: true,
+            localizedNameKey: "AerialWall Test",
+            preferredOrder: 1,
+            previewImage: "https://x/p.png",
+            shotID: "AERIALWALL_TEST",
+            showInTopLevel: true,
+            urlSDR4K240: "https://x/v.mov"
+        )
+    }
+
     @Test func injectAppendsNewAsset() throws {
         let url = try makeFixture()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -152,8 +170,8 @@ struct InjectionEngineTests {
         #expect(missing == [a.id])
     }
 
-    /// V27: ensureCategory adds the AerialWall category once. Second inject is idempotent.
-    @Test func ensureCategoryIdempotent() throws {
+    /// V27: upsertCategory adds the AerialWall category once. Second inject is idempotent.
+    @Test func upsertCategoryIdempotent() throws {
         let url = try makeFixture()
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -162,17 +180,96 @@ struct InjectionEngineTests {
         let a = validAsset()
         let cat = InjectionEngine.makeAerialWallCategory(
             representativeAssetID: a.id,
-            previewImageURL: "file:///tmp/x.png"
+            previewImageURL: "https://x/x.png"
         )
-        try InjectionEngine.inject(a, into: url, ensureCategory: cat)
+        try InjectionEngine.inject(a, into: url, upsertCategory: cat)
         let afterFirst = try EntriesJSONCodec.load(from: url)
         #expect(afterFirst.categories.count == beforeCount + 1)
         #expect(afterFirst.categories.contains { $0.id == Constants.AerialWallCategory.categoryID })
 
-        // Inject same asset again with same category — count stays put.
-        try InjectionEngine.inject(a, into: url, ensureCategory: cat)
+        try InjectionEngine.inject(a, into: url, upsertCategory: cat)
         let afterSecond = try EntriesJSONCodec.load(from: url)
         #expect(afterSecond.categories.count == beforeCount + 1)
+    }
+
+    /// V43: upsertCategory on a pre-existing category refreshes rep + previewImage
+    /// so they keep pointing at a currently-existing asset.
+    @Test func upsertCategoryRefreshesRep() throws {
+        let url = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let firstAsset = validAsset(id: "11111111-1111-1111-1111-111111111111")
+        let firstCat = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: firstAsset.id,
+            previewImageURL: "https://first.example/p.png"
+        )
+        try InjectionEngine.inject(firstAsset, into: url, upsertCategory: firstCat)
+
+        let secondAsset = validAsset(id: "22222222-2222-2222-2222-222222222222")
+        let secondCat = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: secondAsset.id,
+            previewImageURL: "https://second.example/p.png"
+        )
+        try InjectionEngine.inject(secondAsset, into: url, upsertCategory: secondCat)
+
+        let loaded = try EntriesJSONCodec.load(from: url)
+        let our = loaded.categories.first { $0.id == Constants.AerialWallCategory.categoryID }!
+        #expect(our.representativeAssetID == secondAsset.id)
+        #expect(our.previewImage == "https://second.example/p.png")
+        for sub in our.subcategories {
+            #expect(sub.representativeAssetID == secondAsset.id)
+            #expect(sub.previewImage == "https://second.example/p.png")
+        }
+    }
+
+    /// V43: remove() reassigns rep when the removed asset was the category's representative.
+    @Test func removeReassignsCategoryRepWhenAssetsRemain() throws {
+        let url = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let a = aerialWallAsset(id: "11111111-1111-1111-1111-111111111111")
+        let b = aerialWallAsset(id: "22222222-2222-2222-2222-222222222222")
+        let catA = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: a.id, previewImageURL: "https://a/p.png")
+        let catB = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: b.id, previewImageURL: "https://b/p.png")
+        try InjectionEngine.inject(a, into: url, upsertCategory: catA)
+        try InjectionEngine.inject(b, into: url, upsertCategory: catB)
+        // Category rep is now b. Remove b → rep must fall back to a.
+        try InjectionEngine.remove(id: b.id, from: url)
+        let loaded = try EntriesJSONCodec.load(from: url)
+        let our = loaded.categories.first { $0.id == Constants.AerialWallCategory.categoryID }!
+        #expect(our.representativeAssetID == a.id)
+    }
+
+    /// V43: remove() strips the custom category entirely when no AerialWall assets remain.
+    @Test func removeStripsCategoryWhenEmpty() throws {
+        let url = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let a = aerialWallAsset(id: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+        let cat = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: a.id, previewImageURL: "https://a/p.png")
+        try InjectionEngine.inject(a, into: url, upsertCategory: cat)
+        try InjectionEngine.remove(id: a.id, from: url)
+        let loaded = try EntriesJSONCodec.load(from: url)
+        #expect(!loaded.categories.contains { $0.id == Constants.AerialWallCategory.categoryID })
+        // Stock categories survive (V28).
+        #expect(loaded.categories.contains { $0.id == Constants.StockCategory.landscapes })
+    }
+
+    /// V28: remove() never touches stock Apple categories even if they end up empty.
+    @Test func removeNeverDropsStockCategories() throws {
+        let url = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let stockCountBefore = try EntriesJSONCodec.load(from: url).categories.count
+        let a = aerialWallAsset(id: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+        let cat = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: a.id, previewImageURL: "https://a/p.png")
+        try InjectionEngine.inject(a, into: url, upsertCategory: cat)
+        try InjectionEngine.remove(id: a.id, from: url)
+        let stockCountAfter = try EntriesJSONCodec.load(from: url).categories.count
+        #expect(stockCountAfter == stockCountBefore)
     }
 
     @Test func aerialWallCategoryUUIDsAreValidUppercase() {

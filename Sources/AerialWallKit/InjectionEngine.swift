@@ -61,22 +61,34 @@ public enum InjectionEngine {
     }
 
     /// Insert `asset`, or replace the existing entry with the same id.
-    /// If `ensureCategory` is provided and a category with its `id` is not yet
-    /// in `entries.json:categories[]`, append it in the same atomic write
-    /// (V27 — AerialWall's custom top-level category).
+    /// If `upsertCategory` is provided: append it when absent, OR refresh
+    /// `representativeAssetID` + `previewImage` on the existing category
+    /// (V43 — rep MUST always point to a live asset, otherwise
+    /// WallpaperAerialsExtension drops every aerial category from the UI).
     @discardableResult
     public static func inject(
         _ asset: Asset,
         into entriesURL: URL = Constants.entriesJSONPath,
-        ensureCategory: Category? = nil
+        upsertCategory: Category? = nil
     ) throws -> EntriesManifest {
         try asset.validate()
         try gateSchema(at: entriesURL)
 
         var manifest = try EntriesJSONCodec.load(from: entriesURL)
 
-        if let cat = ensureCategory, !manifest.categories.contains(where: { $0.id == cat.id }) {
-            manifest.categories.append(cat)
+        if let cat = upsertCategory {
+            if let i = manifest.categories.firstIndex(where: { $0.id == cat.id }) {
+                manifest.categories[i].representativeAssetID = cat.representativeAssetID
+                manifest.categories[i].previewImage = cat.previewImage
+                for newSub in cat.subcategories {
+                    if let sj = manifest.categories[i].subcategories.firstIndex(where: { $0.id == newSub.id }) {
+                        manifest.categories[i].subcategories[sj].representativeAssetID = newSub.representativeAssetID
+                        manifest.categories[i].subcategories[sj].previewImage = newSub.previewImage
+                    }
+                }
+            } else {
+                manifest.categories.append(cat)
+            }
         }
 
         if let existing = manifest.assets.firstIndex(where: { $0.id == asset.id }) {
@@ -116,14 +128,48 @@ public enum InjectionEngine {
     }
 
     /// Remove the asset with `id`. No-op if absent.
+    /// `maintaining` lists custom category UUIDs whose integrity we own
+    /// (V28: never touch stock Apple categories). For each: if the removed
+    /// asset was the category's rep, reassign rep to another remaining asset;
+    /// if no assets remain in the category, drop the category entirely.
     @discardableResult
     public static func remove(
         id: String,
-        from entriesURL: URL = Constants.entriesJSONPath
+        from entriesURL: URL = Constants.entriesJSONPath,
+        maintaining customCategoryIDs: Set<String> = [Constants.AerialWallCategory.categoryID]
     ) throws -> EntriesManifest {
         try gateSchema(at: entriesURL)
         var manifest = try EntriesJSONCodec.load(from: entriesURL)
         manifest.assets.removeAll { $0.id == id }
+
+        var keptCategories: [Category] = []
+        for var cat in manifest.categories {
+            guard customCategoryIDs.contains(cat.id) else {
+                keptCategories.append(cat)
+                continue
+            }
+            let remaining = manifest.assets.filter { $0.categories.contains(cat.id) }
+            guard !remaining.isEmpty else { continue }    // drop empty custom category
+
+            if cat.representativeAssetID == id, let pick = remaining.first {
+                cat.representativeAssetID = pick.id
+                cat.previewImage = pick.previewImage
+            }
+            var keptSubs: [Subcategory] = []
+            for var sub in cat.subcategories {
+                let subRemaining = remaining.filter { $0.subcategories.contains(sub.id) }
+                guard !subRemaining.isEmpty else { continue }
+                if sub.representativeAssetID == id, let pick = subRemaining.first {
+                    sub.representativeAssetID = pick.id
+                    sub.previewImage = pick.previewImage
+                }
+                keptSubs.append(sub)
+            }
+            cat.subcategories = keptSubs
+            keptCategories.append(cat)
+        }
+        manifest.categories = keptCategories
+
         try EntriesJSONCodec.writeAtomically(manifest, to: entriesURL)
         return manifest
     }

@@ -118,7 +118,7 @@ enum ImportService {
             representativeAssetID: uuid,
             previewImageURL: previewURL
         )
-        try InjectionEngine.inject(injectionAsset, ensureCategory: aerialWallCategory)
+        try InjectionEngine.inject(injectionAsset, upsertCategory: aerialWallCategory)
         progress?(0.98)
 
         _ = try? await AgentRestart.restart()
