@@ -208,7 +208,7 @@ V31: hardlinking ⊥ used for injected `.mov` — always a real copy of transcod
 id |st|task                                                                |cites
 T1 |x |Xcode proj: app + agent target + AerialWallKit framework            |§C
 T2 |x |Constants.swift: paths, bundle IDs, stock category UUIDs            |§I
-T3 |. |entries.json codec: parse v1, schema-version probe, atomic write    |V14,V15,V21
+T3 |x |entries.json codec: parse v1, schema-version probe, atomic write    |V14,V15,V21
 T4 |. |InjectionEngine: append asset, verify post-restart, remove          |V7,V13,V14,V20
 T5 |. |TranscodeEngine: FFmpegKit + hevc_videotoolbox + libx265 fallback   |V1,V2,V3,V23
 T6 |. |ThumbnailGenerator: AVAssetImageGenerator → PNG @ t=1s              |§I
