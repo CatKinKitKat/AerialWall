@@ -3,22 +3,26 @@ import AerialWallKit
 
 @main
 struct AerialWallApp: App {
+    @State private var library = WallpaperLibrary()
+
     var body: some Scene {
         WindowGroup("AerialWall") {
-            ContentView()
-                .frame(minWidth: 640, minHeight: 480)
+            RootView(library: library)
+                .frame(minWidth: 760, minHeight: 520)
+                .task { await library.load() }
         }
-    }
-}
+        .defaultSize(width: 960, height: 620)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("Import…") {
+                    Task { await library.openImportPanel() }
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
+        }
 
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Text("AerialWall")
-                .font(.largeTitle)
-            Text("v\(AerialWallKit.version)")
-                .foregroundStyle(.secondary)
+        Settings {
+            SettingsScene()
         }
-        .padding()
     }
 }
