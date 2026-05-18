@@ -152,6 +152,39 @@ struct InjectionEngineTests {
         #expect(missing == [a.id])
     }
 
+    /// V27: ensureCategory adds the AerialWall category once. Second inject is idempotent.
+    @Test func ensureCategoryIdempotent() throws {
+        let url = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let beforeCount = try EntriesJSONCodec.load(from: url).categories.count
+
+        let a = validAsset()
+        let cat = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: a.id,
+            previewImageURL: "file:///tmp/x.png"
+        )
+        try InjectionEngine.inject(a, into: url, ensureCategory: cat)
+        let afterFirst = try EntriesJSONCodec.load(from: url)
+        #expect(afterFirst.categories.count == beforeCount + 1)
+        #expect(afterFirst.categories.contains { $0.id == Constants.AerialWallCategory.categoryID })
+
+        // Inject same asset again with same category — count stays put.
+        try InjectionEngine.inject(a, into: url, ensureCategory: cat)
+        let afterSecond = try EntriesJSONCodec.load(from: url)
+        #expect(afterSecond.categories.count == beforeCount + 1)
+    }
+
+    @Test func aerialWallCategoryUUIDsAreValidUppercase() {
+        let cat = Constants.AerialWallCategory.categoryID
+        let sub = Constants.AerialWallCategory.subcategoryID
+        #expect(UUID(uuidString: cat) != nil)
+        #expect(UUID(uuidString: sub) != nil)
+        #expect(cat == cat.uppercased())
+        #expect(sub == sub.uppercased())
+        #expect(cat != sub)
+    }
+
     /// Stock entries are untouched by inject/remove of an AerialWall id.
     @Test func stockAssetsPreservedAcrossMutations() throws {
         let url = try makeFixture()

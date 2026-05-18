@@ -8,18 +8,15 @@ struct ImportSheet: View {
 
     @State private var name: String
     @State private var descText: String
-    @State private var categoryID: String
-    @State private var options: [CategoryOption]
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case name, description }
 
     init(draft: ImportDraft, onCancel: @escaping () -> Void,
          onContinue: @escaping (ImportMetadata) -> Void) {
         self.draft = draft
         self.onCancel = onCancel
         self.onContinue = onContinue
-
-        let opts = CategoryCatalog.availableOptions()
-        self._options = State(initialValue: opts)
-        self._categoryID = State(initialValue: CategoryCatalog.defaultOption(in: opts)?.id ?? "")
         self._name = State(initialValue: draft.suggestedName)
         self._descText = State(initialValue: "")
     }
@@ -32,27 +29,24 @@ struct ImportSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 thumbnail
                     .frame(width: 200, height: 112)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))    // V34: the one allowed tweak
+                    .clipShape(RoundedRectangle(cornerRadius: 8))   // V34
 
                 VStack(alignment: .leading, spacing: 10) {
                     LabeledField(label: "Name") {
                         TextField("", text: $name)
                             .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .name)
+                            .onSubmit { focusedField = .description }
                     }
                     LabeledField(label: "Description") {
                         TextField("Optional", text: $descText, axis: .vertical)
                             .lineLimit(2...4)
                             .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .description)
                     }
-                    LabeledField(label: "Category") {
-                        Picker("", selection: $categoryID) {
-                            ForEach(options) { opt in
-                                Text("\(opt.parentDisplayName) — \(opt.displayName)")
-                                    .tag(opt.id)
-                            }
-                        }
-                        .labelsHidden()
-                    }
+                    Text("Category: \(Constants.AerialWallCategory.displayName)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -63,25 +57,29 @@ struct ImportSheet: View {
                 Spacer()
                 Button("Exit", role: .cancel) { onCancel() }
                     .keyboardShortcut(.cancelAction)
-                Button("Continue") {
-                    guard let opt = options.first(where: { $0.id == categoryID }) else { return }
-                    onContinue(ImportMetadata(
-                        name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? draft.suggestedName
-                            : name.trimmingCharacters(in: .whitespacesAndNewlines),
-                        description: descText.trimmingCharacters(in: .whitespacesAndNewlines),
-                        categoryID: opt.parentID,
-                        subcategoryID: opt.id
-                    ))
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                          || options.isEmpty)
+                Button("Continue") { submit() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(24)
         .frame(width: 540)
+        .onAppear {
+            // Belt and suspenders: explicit focus once the sheet is on screen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                focusedField = .name
+            }
+        }
+    }
+
+    private func submit() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        onContinue(ImportMetadata(
+            name: trimmed,
+            description: descText.trimmingCharacters(in: .whitespacesAndNewlines)
+        ))
     }
 
     @ViewBuilder

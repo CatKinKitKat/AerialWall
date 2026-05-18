@@ -89,12 +89,13 @@ enum ImportService {
         try FileManager.default.copyItem(at: kitThumbPath, to: appleThumbPath)
         progress?(0.95)
 
-        // T4 inject into entries.json.
+        // T4 inject into entries.json. V27: include the AerialWall category in
+        // the same atomic write — idempotent if it's already present.
         let injectionAsset = Asset(
             id: uuid,
             accessibilityLabel: metadata.name,
-            categories: [metadata.categoryID],
-            subcategories: [metadata.subcategoryID],
+            categories: [Constants.AerialWallCategory.categoryID],
+            subcategories: [Constants.AerialWallCategory.subcategoryID],
             includeInShuffle: false,
             localizedNameKey: metadata.name,                // V9: rendered literally
             preferredOrder: -100,
@@ -103,7 +104,11 @@ enum ImportService {
             showInTopLevel: true,
             urlSDR4K240: appleVideoPath.absoluteString
         )
-        try InjectionEngine.inject(injectionAsset)
+        let aerialWallCategory = InjectionEngine.makeAerialWallCategory(
+            representativeAssetID: uuid,
+            previewImageURL: appleThumbPath.absoluteString
+        )
+        try InjectionEngine.inject(injectionAsset, ensureCategory: aerialWallCategory)
         progress?(0.98)
 
         _ = try? await AgentRestart.restart()
@@ -113,8 +118,8 @@ enum ImportService {
             uuid: uuid,
             name: metadata.name,
             description: metadata.description,
-            categoryID: metadata.categoryID,
-            subcategoryID: metadata.subcategoryID,
+            categoryID: Constants.AerialWallCategory.categoryID,
+            subcategoryID: Constants.AerialWallCategory.subcategoryID,
             originalFilename: source.lastPathComponent,
             importedAt: .now,
             durationSeconds: duration,

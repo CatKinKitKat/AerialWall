@@ -20,10 +20,10 @@ struct ImportDraft: Identifiable {
     }
 }
 
-/// Caller-supplied metadata for the full import pipeline.
+/// Caller-supplied metadata for the full import pipeline. Category fields
+/// are no longer user-selectable — every AerialWall import goes under the
+/// hardcoded `Constants.AerialWallCategory` (V27, V28).
 struct ImportMetadata: Sendable {
     let name: String
     let description: String
-    let categoryID: String
-    let subcategoryID: String
 }

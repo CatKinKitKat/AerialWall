@@ -103,6 +103,19 @@ public enum Constants {
         home.appending(path: "Library/LaunchAgents/com.aerialwall.agent.plist")
     }
 
+    // MARK: - AerialWall custom category (V27: appended to entries.json:categories[])
+
+    public enum AerialWallCategory {
+        /// Stable UUID for the top-level "AerialWall" category we inject.
+        public static let categoryID = "A6E1A1A6-9A11-4FED-B0A1-AED7E51BA6E0"
+        /// Single subcategory under it — "My Wallpapers".
+        public static let subcategoryID = "A6E1A1A6-9A11-4FED-B0A1-AED7E51BA6E1"
+        /// Display strings rendered literally (V9 — no localization bundle key).
+        public static let displayName = "AerialWall"
+        public static let subcategoryDisplayName = "My Wallpapers"
+        public static let descriptionText = "Custom wallpapers added with AerialWall"
+    }
+
     // MARK: - Apple stock category UUIDs (verbatim — do NOT modify these entries)
 
     public enum StockCategory {

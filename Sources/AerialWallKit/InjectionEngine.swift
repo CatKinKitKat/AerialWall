@@ -61,15 +61,24 @@ public enum InjectionEngine {
     }
 
     /// Insert `asset`, or replace the existing entry with the same id.
+    /// If `ensureCategory` is provided and a category with its `id` is not yet
+    /// in `entries.json:categories[]`, append it in the same atomic write
+    /// (V27 — AerialWall's custom top-level category).
     @discardableResult
     public static func inject(
         _ asset: Asset,
-        into entriesURL: URL = Constants.entriesJSONPath
+        into entriesURL: URL = Constants.entriesJSONPath,
+        ensureCategory: Category? = nil
     ) throws -> EntriesManifest {
         try asset.validate()
         try gateSchema(at: entriesURL)
 
         var manifest = try EntriesJSONCodec.load(from: entriesURL)
+
+        if let cat = ensureCategory, !manifest.categories.contains(where: { $0.id == cat.id }) {
+            manifest.categories.append(cat)
+        }
+
         if let existing = manifest.assets.firstIndex(where: { $0.id == asset.id }) {
             manifest.assets[existing] = asset
         } else {
@@ -77,6 +86,33 @@ public enum InjectionEngine {
         }
         try EntriesJSONCodec.writeAtomically(manifest, to: entriesURL)
         return manifest
+    }
+
+    /// Build the canonical "AerialWall" category record we append to entries.json.
+    /// `representativeAssetID` is referenced for the category preview thumbnail
+    /// in System Settings — pass the UUID of the first asset you're injecting.
+    public static func makeAerialWallCategory(
+        representativeAssetID: String,
+        previewImageURL: String
+    ) -> Category {
+        Category(
+            id: Constants.AerialWallCategory.categoryID,
+            localizedNameKey: Constants.AerialWallCategory.displayName,
+            localizedDescriptionKey: Constants.AerialWallCategory.descriptionText,
+            preferredOrder: -1,
+            previewImage: previewImageURL,
+            representativeAssetID: representativeAssetID,
+            subcategories: [
+                Subcategory(
+                    id: Constants.AerialWallCategory.subcategoryID,
+                    localizedNameKey: Constants.AerialWallCategory.subcategoryDisplayName,
+                    localizedDescriptionKey: Constants.AerialWallCategory.descriptionText,
+                    preferredOrder: -1,
+                    previewImage: previewImageURL,
+                    representativeAssetID: representativeAssetID
+                )
+            ]
+        )
     }
 
     /// Remove the asset with `id`. No-op if absent.
