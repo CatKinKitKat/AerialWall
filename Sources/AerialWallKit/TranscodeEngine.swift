@@ -84,6 +84,7 @@ public enum TranscodeEngine {
             "-i", input.path,
             "-an",                                              // V3
             "-vf", vf,
+            "-r", "240",                                         // V45: match Apple's 240fps timebase (B15)
             "-c:v", resolvedEncoder.rawValue,                   // V23
             "-tag:v", "hvc1",                                   // V2
             "-profile:v", "main10",                             // V1
