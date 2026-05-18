@@ -65,42 +65,63 @@ public enum TranscodeEngine {
         resolvedEncoder: VideoEncoder
     ) -> [String] {
         precondition(resolvedEncoder != .auto, "resolvedEncoder must be concrete")
-        // V1 SDR bt709: set via the `setparams` filter so the metadata is embedded
-        // at the filter graph level. Output-level `-color_*` flags are unreliable
-        // with hevc_videotoolbox and may be stripped from the bitstream.
-        // V44: `setpts=PTS-STARTPTS` forces the output's first frame PTS to 0.
-        // Without it VT/source can yield a 1-frame start_time offset (~33ms);
-        // WallpaperAerialsExtension seeks to t=0 for its still frame and finds
-        // nothing there → gray fallback on unlock (B14).
+        // V1 SDR bt709 via `setparams` filter (output-level `-color_*` flags
+        // are unreliably propagated). V44: `setpts=PTS-STARTPTS` forces first-
+        // frame PTS to 0 — wallpaper extension seeks to t=0 for the unlock-
+        // fade still frame (B14).
         let vf = "scale=\(options.width):\(options.height):force_original_aspect_ratio=decrease," +
             "pad=\(options.width):\(options.height):(ow-iw)/2:(oh-ih)/2," +
             "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv," +
             "setpts=PTS-STARTPTS"
-        return [
+
+        // V47: VT-specific pix_fmt is `p010le`; libx265 uses `yuv420p10le`.
+        let pixFmt = resolvedEncoder == .videoToolbox ? "p010le" : "yuv420p10le"
+
+        var args: [String] = [
             "-y",
-            "-nostdin",                                          // V38: ⊥ tty stdin handling — hangs in tcsetattr when run as subprocess
-            "-progress", "pipe:1",                              // stream progress to stdout
-            "-nostats",                                          // suppress per-line stderr noise
+            "-nostdin",                                          // V38
+            "-progress", "pipe:1",
+            "-nostats",
             "-i", input.path,
             "-an",                                              // V3
             "-vf", vf,
-            // V45 (-r 240) reverted — 30→240fps frame duplication didn't fix B14
-            // and made transcodes ~5× slower.
             "-c:v", resolvedEncoder.rawValue,                   // V23
             "-tag:v", "hvc1",                                   // V2
             "-profile:v", "main10",                             // V1
-            "-pix_fmt", "p010le",                               // V1 (10-bit)
+            "-pix_fmt", pixFmt,                                 // V1, V47
             "-b:v", options.bitrate,
-            "-bf", "4",                                          // V46: B-frames (Apple's encode has 4)
-            "-refs", "4",
-            "-muxdelay", "0", "-muxpreload", "0",                // V44: no muxer-side preroll padding
+        ]
+
+        // V47: encoder-specific options.
+        // hevc_videotoolbox produces .mov that fails wallpaper-extension still-
+        // frame extraction on unlock (B17). libx265 is now the default; VT is
+        // retained as a fallback / future opt-in.
+        if resolvedEncoder == .x265 {
+            // Apple stock: has_b_frames=4, level=5.2.1. -preset fast keeps the
+            // encode tractable on 4K Main 10 (~3× realtime on M-series; far
+            // faster than -preset medium which is 10×+).
+            args += [
+                "-preset", "fast",
+                "-x265-params", "bframes=4:ref=4:level-idc=5.2:log-level=error",
+            ]
+        } else {
+            args += ["-bf", "4", "-refs", "4"]                  // V46
+        }
+
+        args += [
+            "-muxdelay", "0", "-muxpreload", "0",                // V44
             "-movflags", "+faststart",
             "-f", "mov",
             output.path,
         ]
+        return args
     }
 
-    /// V23: resolve `.auto` → `.videoToolbox` if the encoder is available, else `.x265`.
+    /// V47: `.auto` now resolves to `.x265` (software) primarily. VT was the
+    /// original default but its output fails wallpaper-extension still-frame
+    /// extraction on unlock (B17 — confirmed via Test C: even Apple's own
+    /// content re-encoded through VT goes gray). `.videoToolbox` remains
+    /// explicitly selectable but is no longer the auto choice.
     public static func resolveEncoder(_ requested: VideoEncoder, ffmpeg: URL) throws -> VideoEncoder {
         switch requested {
         case .videoToolbox, .x265: return requested
@@ -115,7 +136,7 @@ public enum TranscodeEngine {
             proc.waitUntilExit()
             let data = out.fileHandleForReading.readDataToEndOfFile()
             let text = String(data: data, encoding: .utf8) ?? ""
-            return text.contains("hevc_videotoolbox") ? .videoToolbox : .x265
+            return text.contains("libx265") ? .x265 : .videoToolbox
         }
     }
 

@@ -14,7 +14,7 @@ struct TranscodeEngineTests {
         let args = TranscodeEngine.buildArgs(
             input: input, output: output,
             options: TranscodeOptions(),
-            resolvedEncoder: .videoToolbox
+            resolvedEncoder: .x265
         )
 
         // V38: explicit non-interactive stdin
@@ -27,11 +27,13 @@ struct TranscodeEngineTests {
         // V1: Main 10 profile + 10-bit pix fmt
         let profileIx = args.firstIndex(of: "-profile:v")!
         #expect(args[profileIx + 1] == "main10")
-        let pixIx = args.firstIndex(of: "-pix_fmt")!
-        #expect(args[pixIx + 1] == "p010le")
-        // V23: resolved encoder used verbatim
+        // V23 + V47: libx265 is the default now (VT fails B17 unlock-rebind).
         let encIx = args.firstIndex(of: "-c:v")!
-        #expect(args[encIx + 1] == "hevc_videotoolbox")
+        #expect(args[encIx + 1] == "libx265")
+        // x265 path uses yuv420p10le (not VT's p010le) + x265-params
+        let pixIx = args.firstIndex(of: "-pix_fmt")!
+        #expect(args[pixIx + 1] == "yuv420p10le")
+        #expect(args.contains("-x265-params"))
         // V1 SDR bt709 embedded via setparams filter in -vf chain
         let vfIx = args.firstIndex(of: "-vf")!
         let vf = args[vfIx + 1]
@@ -64,7 +66,7 @@ struct TranscodeEngineTests {
             input: URL(fileURLWithPath: "/tmp/in.mp4"),
             output: URL(fileURLWithPath: "/tmp/out.mov"),
             options: opts,
-            resolvedEncoder: .videoToolbox
+            resolvedEncoder: .x265
         )
         let vfIx = args.firstIndex(of: "-vf")!
         #expect(args[vfIx + 1].contains("scale=1920:1080"))
@@ -117,7 +119,7 @@ struct TranscodeEngineTests {
             input: URL(fileURLWithPath: "/tmp/in.mp4"),
             output: URL(fileURLWithPath: "/tmp/out.mov"),
             options: TranscodeOptions(),
-            resolvedEncoder: .videoToolbox
+            resolvedEncoder: .x265
         )
         // V44: setpts=PTS-STARTPTS in the vf chain forces first-frame PTS = 0
         let vfIx = args.firstIndex(of: "-vf")!
