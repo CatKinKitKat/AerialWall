@@ -69,6 +69,33 @@ struct TranscodeEngineTests {
         #expect(args[vfIx + 1].contains("pad=1920:1080"))
     }
 
+    @Test func parsesOutTimeFromProgressStream() {
+        let chunk = """
+        frame=42
+        fps=12.34
+        out_time_us=2500000
+        out_time=00:00:02.500000
+        progress=continue
+        """
+        #expect(TranscodeEngine.extractOutTimeMicros(from: chunk) == 2_500_000)
+    }
+
+    @Test func handlesMultipleProgressBlocksReturnsLatest() {
+        let chunk = """
+        out_time_us=1000000
+        progress=continue
+        out_time_us=2000000
+        progress=continue
+        out_time_us=3500000
+        progress=continue
+        """
+        #expect(TranscodeEngine.extractOutTimeMicros(from: chunk) == 3_500_000)
+    }
+
+    @Test func returnsNilWhenNoOutTime() {
+        #expect(TranscodeEngine.extractOutTimeMicros(from: "frame=1\nprogress=end") == nil)
+    }
+
     @Test func detectFFmpegFindsSystemBinary() throws {
         // Will succeed on dev box with Homebrew; skip otherwise.
         do {

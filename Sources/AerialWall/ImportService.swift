@@ -25,15 +25,26 @@ enum ImportService {
         let kitVideoPath = Constants.aerialWallLibraryDir.appending(path: "\(uuid).mov")
         let kitThumbPath = Constants.aerialWallThumbsDir.appending(path: "\(uuid).png")
 
-        progress?(0.05)
+        progress?(0.02)
 
-        // T5 transcode (V1, V2, V3, V4) — also runs the .isPlayable validation.
-        try await TranscodeEngine.transcodeAndValidate(input: source, output: kitVideoPath)
-        progress?(0.65)
+        // Probe input duration so the transcode can emit live progress.
+        // AVFoundation handles AV1/WebM on modern macOS; fall back to 0 if it can't.
+        let inputDuration = (try? await AVURLAsset(url: source).load(.duration).seconds) ?? 0
+
+        // T5 transcode (V1, V2, V3, V4). Live progress maps to 0.02 … 0.85
+        // of the overall import — the long pole of the pipeline.
+        var opts = TranscodeOptions()
+        opts.inputDurationSeconds = inputDuration > 0 ? inputDuration : nil
+        try await TranscodeEngine.transcodeAndValidate(
+            input: source, output: kitVideoPath, options: opts
+        ) { ratio in
+            progress?(0.02 + ratio * 0.83)
+        }
+        progress?(0.85)
 
         // T6 thumbnail.
         try await ThumbnailGenerator.generate(from: kitVideoPath, to: kitThumbPath)
-        progress?(0.70)
+        progress?(0.90)
 
         // Read final dimensions / duration for the AerialWall manifest.
         let avAsset = AVURLAsset(url: kitVideoPath)
@@ -55,7 +66,7 @@ enum ImportService {
         try? FileManager.default.removeItem(at: appleThumbPath)
         try FileManager.default.copyItem(at: kitVideoPath, to: appleVideoPath)
         try FileManager.default.copyItem(at: kitThumbPath, to: appleThumbPath)
-        progress?(0.80)
+        progress?(0.95)
 
         // T4 inject into entries.json (V7, V13, V14, V21).
         let injectionAsset = Asset(
@@ -72,7 +83,7 @@ enum ImportService {
             urlSDR4K240: appleVideoPath.absoluteString
         )
         try InjectionEngine.inject(injectionAsset)
-        progress?(0.90)
+        progress?(0.98)
 
         // T8 restart wallpaper agent so it picks up the new entry. Best-effort —
         // failures here don't roll back; entries.json mutation already succeeded.

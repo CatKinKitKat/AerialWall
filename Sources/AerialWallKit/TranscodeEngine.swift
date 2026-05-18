@@ -14,9 +14,15 @@ public struct TranscodeOptions: Sendable {
     public var encoder: VideoEncoder = .auto
     /// Explicit ffmpeg binary path. `nil` ⇒ auto-detect via PATH-like search.
     public var ffmpegPath: String? = nil
+    /// Total input duration in seconds. When set, `transcode()` emits live
+    /// progress values 0…1 derived from ffmpeg's `out_time_us` reports.
+    /// Without this, `transcode()` produces no progress events.
+    public var inputDurationSeconds: Double? = nil
 
     public init() {}
 }
+
+public typealias TranscodeProgress = @Sendable (Double) -> Void
 
 public enum TranscodeError: Error, Equatable {
     case ffmpegNotFound(searched: [String])
@@ -63,6 +69,8 @@ public enum TranscodeEngine {
             "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
         return [
             "-y",
+            "-progress", "pipe:1",                              // stream progress to stdout
+            "-nostats",                                          // suppress per-line stderr noise
             "-i", input.path,
             "-an",                                              // V3
             "-vf", vf,
@@ -113,11 +121,28 @@ public enum TranscodeEngine {
         }
     }
 
+    /// Parse `key=value` chunks ffmpeg emits when invoked with `-progress pipe:1`.
+    /// Returns the latest `out_time_us` value or nil if the chunk has no such line.
+    static func extractOutTimeMicros(from chunk: String) -> Int64? {
+        var latest: Int64? = nil
+        for line in chunk.split(separator: "\n") {
+            if let eq = line.firstIndex(of: "="),
+               line[line.startIndex..<eq] == "out_time_us",
+               let v = Int64(line[line.index(after: eq)...]) {
+                latest = v
+            }
+        }
+        return latest
+    }
+
     /// Run ffmpeg. Throws on non-zero exit with stderr tail captured.
+    /// If `options.inputDurationSeconds` is set and `progress` is provided,
+    /// emits 0…1 values derived from ffmpeg's `-progress pipe:1` stream.
     public static func transcode(
         input: URL,
         output: URL,
-        options: TranscodeOptions = .init()
+        options: TranscodeOptions = .init(),
+        progress: TranscodeProgress? = nil
     ) async throws {
         let ffmpeg = try detectFFmpeg(options.ffmpegPath)
         let encoder = try resolveEncoder(options.encoder, ffmpeg: ffmpeg)
@@ -150,12 +175,22 @@ public enum TranscodeEngine {
                     collector.append(chunk)
                 }
             }
+            // stdout carries the `-progress pipe:1` stream. Parse `out_time_us`
+            // and emit normalized 0…1 progress when input duration is known.
             outPipe.fileHandleForReading.readabilityHandler = { handle in
                 let chunk = handle.availableData
                 if chunk.isEmpty {
                     handle.readabilityHandler = nil
+                    return
                 }
-                // stdout discarded — ffmpeg writes nothing useful there with current flags
+                guard
+                    let progress,
+                    let durationSec = options.inputDurationSeconds, durationSec > 0,
+                    let text = String(data: chunk, encoding: .utf8),
+                    let outTimeUs = extractOutTimeMicros(from: text)
+                else { return }
+                let ratio = min(1.0, max(0.0, Double(outTimeUs) / (durationSec * 1_000_000)))
+                progress(ratio)
             }
 
             proc.terminationHandler = { p in
@@ -195,9 +230,10 @@ public enum TranscodeEngine {
     public static func transcodeAndValidate(
         input: URL,
         output: URL,
-        options: TranscodeOptions = .init()
+        options: TranscodeOptions = .init(),
+        progress: TranscodeProgress? = nil
     ) async throws {
-        try await transcode(input: input, output: output, options: options)
+        try await transcode(input: input, output: output, options: options, progress: progress)
         try await validate(output: output)
     }
 }
