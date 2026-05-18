@@ -10,7 +10,11 @@ public enum VideoEncoder: String, Sendable {
 public struct TranscodeOptions: Sendable {
     public var width: Int = 3840
     public var height: Int = 2160
-    public var bitrate: String = "12M"
+    /// Default 20M — Apple's own clips run ~12.4M but those are professionally
+    /// mastered originals. User imports often start from an already-lossy
+    /// source (web-encoded MP4 / WebM AV1); the extra headroom suppresses
+    /// the grain that double-compression at 12M produces.
+    public var bitrate: String = "20M"
     public var encoder: VideoEncoder = .auto
     /// Explicit ffmpeg binary path. `nil` ⇒ auto-detect via PATH-like search.
     public var ffmpegPath: String? = nil

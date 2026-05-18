@@ -8,6 +8,9 @@ import UniformTypeIdentifiers
 final class WallpaperViewModel: Identifiable {
     let id: String
     var name: String
+    var description: String
+    var categoryID: String
+    var subcategoryID: String
     var resolution: String
     var durationSeconds: Double
     var importedAt: Date
@@ -21,6 +24,9 @@ final class WallpaperViewModel: Identifiable {
     init(entry: AerialWallEntry) {
         self.id = entry.uuid
         self.name = entry.name
+        self.description = entry.description
+        self.categoryID = entry.categoryID
+        self.subcategoryID = entry.subcategoryID
         self.resolution = entry.resolution
         self.durationSeconds = entry.durationSeconds
         self.importedAt = entry.importedAt
@@ -29,11 +35,14 @@ final class WallpaperViewModel: Identifiable {
         self.isInjected = entry.isInjected
     }
 
-    static func pending(filename: String) -> WallpaperViewModel {
+    static func pending(metadata: ImportMetadata) -> WallpaperViewModel {
         let entry = AerialWallEntry(
             uuid: UUID().uuidString.uppercased(),
-            name: URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent,
-            originalFilename: filename,
+            name: metadata.name,
+            description: metadata.description,
+            categoryID: metadata.categoryID,
+            subcategoryID: metadata.subcategoryID,
+            originalFilename: "",
             importedAt: .now,
             durationSeconds: 0,
             resolution: "—",
@@ -59,6 +68,16 @@ final class WallpaperLibrary {
     var importError: String? = nil
     var showOnboarding: Bool = false
 
+    /// Set when a file has been picked + previewed; drives the import sheet.
+    /// `nil` ⇒ no sheet.
+    var activeDraft: ImportDraft? = nil
+
+    /// Set when user invokes Rename; drives the rename sheet.
+    var renameTarget: WallpaperViewModel? = nil
+
+    /// Set when user invokes Remove; drives the confirmation alert.
+    var removeTarget: WallpaperViewModel? = nil
+
     func load() async {
         do {
             let manifest = try AerialWallManifestStore.load()
@@ -74,20 +93,39 @@ final class WallpaperLibrary {
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie, .video, UTType("public.video") ?? .movie]
+        panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie, .video]
         panel.prompt = "Import"
         if panel.runModal() == .OK, let url = panel.url {
-            await beginImport(from: url)
+            await prepareDraft(from: url)
         }
     }
 
-    func beginImport(from source: URL) async {
-        let placeholder = WallpaperViewModel.pending(filename: source.lastPathComponent)
+    func prepareDraft(from source: URL) async {
+        do {
+            let draft = try await ImportService.prepareDraft(source: source)
+            self.activeDraft = draft
+        } catch {
+            self.importError = "Couldn't preview \"\(source.lastPathComponent)\": \(error)"
+        }
+    }
+
+    func cancelDraft() {
+        if let draft = activeDraft {
+            try? FileManager.default.removeItem(at: draft.previewThumbnailPath)
+        }
+        activeDraft = nil
+    }
+
+    /// User confirmed the modal. Kick the full pipeline; sheet dismisses immediately.
+    func confirmImport(_ draft: ImportDraft, metadata: ImportMetadata) async {
+        // Dismiss sheet first so the table+progress is visible during transcode.
+        activeDraft = nil
+
+        let placeholder = WallpaperViewModel.pending(metadata: metadata)
         wallpapers.append(placeholder)
-        let displayName = placeholder.name
 
         do {
-            let entry = try await ImportService.run(source: source, name: displayName) { progress in
+            let entry = try await ImportService.run(source: draft.source, metadata: metadata) { progress in
                 Task { @MainActor in
                     placeholder.encodingProgress = progress
                 }
@@ -98,6 +136,55 @@ final class WallpaperLibrary {
         } catch {
             placeholder.encodingProgress = nil
             placeholder.errorMessage = "\(error)"
+        }
+
+        try? FileManager.default.removeItem(at: draft.previewThumbnailPath)
+    }
+
+    // MARK: - rename
+
+    func rename(_ vm: WallpaperViewModel, to newName: String) async {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != vm.name else { return }
+        do {
+            // Re-inject entries.json entry with updated labels (V9, V10).
+            let entriesManifest = try EntriesJSONCodec.load(from: Constants.entriesJSONPath)
+            if var assetCopy = entriesManifest.assets.first(where: { $0.id == vm.id }) {
+                assetCopy.accessibilityLabel = trimmed
+                assetCopy.localizedNameKey = trimmed
+                try InjectionEngine.inject(assetCopy)
+            }
+            try AerialWallManifestStore.update(uuid: vm.id) { $0.name = trimmed }
+            _ = try? await AgentRestart.restart()
+            vm.name = trimmed
+        } catch {
+            importError = "Rename failed: \(error)"
+        }
+    }
+
+    // MARK: - remove (mini-T15)
+
+    func remove(_ vm: WallpaperViewModel) async {
+        let id = vm.id
+        do {
+            try InjectionEngine.remove(id: id)
+            // Apple-side files
+            try? FileManager.default.removeItem(
+                at: Constants.wallpaperVideosDir.appending(path: "\(id).mov"))
+            try? FileManager.default.removeItem(
+                at: Constants.wallpaperThumbnailsDir.appending(path: "\(id).png"))
+            // AerialWall-side files
+            if !vm.videoPath.isEmpty {
+                try? FileManager.default.removeItem(atPath: vm.videoPath)
+            }
+            if !vm.thumbPath.isEmpty {
+                try? FileManager.default.removeItem(atPath: vm.thumbPath)
+            }
+            try AerialWallManifestStore.remove(uuid: id)
+            _ = try? await AgentRestart.restart()
+            wallpapers.removeAll { $0.id == id }
+        } catch {
+            importError = "Remove failed: \(error)"
         }
     }
 }

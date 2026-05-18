@@ -2,21 +2,45 @@ import Foundation
 import AVFoundation
 import AerialWallKit
 
-/// Single-shot import pipeline: transcode → thumbnail → backup → inject → restart agent.
-/// Glue between AerialWallKit engines; lives in the app target since the agent
-/// doesn't import (it only re-injects existing entries on drift).
+/// Two-phase import pipeline:
+/// - phase 1 (`prepareDraft`): cheap probe — duration, resolution, preview PNG.
+///   Runs in seconds; output feeds the import modal.
+/// - phase 2 (`run`): full transcode → thumbnail → backup → inject → restart.
+///   Long-running; expects user-confirmed metadata.
 enum ImportService {
 
     typealias ProgressHandler = @Sendable (Double) -> Void
 
+    static func prepareDraft(source: URL) async throws -> ImportDraft {
+        // Quick thumbnail to a tmp file. Cancellation deletes it.
+        let tmpThumb = FileManager.default.temporaryDirectory
+            .appending(path: "aerialwall-draft-\(UUID().uuidString).png")
+        try await ThumbnailGenerator.generate(from: source, to: tmpThumb)
+
+        let avAsset = AVURLAsset(url: source)
+        let duration = (try? await avAsset.load(.duration).seconds) ?? 0
+        let tracks = (try? await avAsset.loadTracks(withMediaType: .video)) ?? []
+        let size = (try? await tracks.first?.load(.naturalSize)) ?? .zero
+        let resolution = size.width > 0 && size.height > 0
+            ? "\(Int(size.width))×\(Int(size.height))"
+            : "—"
+
+        return ImportDraft(
+            source: source,
+            previewThumbnailPath: tmpThumb,
+            durationSeconds: duration,
+            sourceResolution: resolution,
+            suggestedName: source.deletingPathExtension().lastPathComponent
+        )
+    }
+
     static func run(
         source: URL,
-        name: String,
+        metadata: ImportMetadata,
         progress: ProgressHandler? = nil
     ) async throws -> AerialWallEntry {
         let uuid = UUID().uuidString.uppercased()
 
-        // Ensure target dirs exist.
         try FileManager.default.createDirectory(at: Constants.aerialWallLibraryDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: Constants.aerialWallThumbsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: Constants.wallpaperVideosDir, withIntermediateDirectories: true)
@@ -27,12 +51,10 @@ enum ImportService {
 
         progress?(0.02)
 
-        // Probe input duration so the transcode can emit live progress.
-        // AVFoundation handles AV1/WebM on modern macOS; fall back to 0 if it can't.
+        // Probe source duration so transcode can emit live progress.
         let inputDuration = (try? await AVURLAsset(url: source).load(.duration).seconds) ?? 0
 
-        // T5 transcode (V1, V2, V3, V4). Live progress maps to 0.02 … 0.85
-        // of the overall import — the long pole of the pipeline.
+        // T5 transcode (V1, V2, V3, V4). 0.02 … 0.85 ≈ long pole of the import.
         var opts = TranscodeOptions()
         opts.inputDurationSeconds = inputDuration > 0 ? inputDuration : nil
         try await TranscodeEngine.transcodeAndValidate(
@@ -46,7 +68,7 @@ enum ImportService {
         try await ThumbnailGenerator.generate(from: kitVideoPath, to: kitThumbPath)
         progress?(0.90)
 
-        // Read final dimensions / duration for the AerialWall manifest.
+        // Read final dimensions/duration of the transcoded file for the manifest.
         let avAsset = AVURLAsset(url: kitVideoPath)
         let duration = (try? await avAsset.load(.duration).seconds) ?? 0
         let tracks = (try? await avAsset.loadTracks(withMediaType: .video)) ?? []
@@ -55,11 +77,10 @@ enum ImportService {
             ? "\(Int(size.width))x\(Int(size.height))"
             : "—"
 
-        // V30: snapshot entries.json before we touch it.
+        // V30: snapshot entries.json before mutation.
         _ = try? BackupManager.snapshot()
 
-        // Copy mov + png into Apple's wallpaper dir under our UUID. V31: real copy,
-        // not hardlink — keeps refcount semantics simple if the kit-side file is later removed.
+        // V31: real copy, not hardlink.
         let appleVideoPath = Constants.wallpaperVideosDir.appending(path: "\(uuid).mov")
         let appleThumbPath = Constants.wallpaperThumbnailsDir.appending(path: "\(uuid).png")
         try? FileManager.default.removeItem(at: appleVideoPath)
@@ -68,15 +89,15 @@ enum ImportService {
         try FileManager.default.copyItem(at: kitThumbPath, to: appleThumbPath)
         progress?(0.95)
 
-        // T4 inject into entries.json (V7, V13, V14, V21).
+        // T4 inject into entries.json.
         let injectionAsset = Asset(
             id: uuid,
-            accessibilityLabel: name,
-            categories: [Constants.StockCategory.landscapes],
-            subcategories: [Constants.StockCategory.tahoeSubcategory],
+            accessibilityLabel: metadata.name,
+            categories: [metadata.categoryID],
+            subcategories: [metadata.subcategoryID],
             includeInShuffle: false,
-            localizedNameKey: name,                     // V9: rendered literally
-            preferredOrder: -100,                       // surface at top
+            localizedNameKey: metadata.name,                // V9: rendered literally
+            preferredOrder: -100,
             previewImage: appleThumbPath.absoluteString,
             shotID: "AERIALWALL_\(uuid.prefix(8))",
             showInTopLevel: true,
@@ -85,15 +106,15 @@ enum ImportService {
         try InjectionEngine.inject(injectionAsset)
         progress?(0.98)
 
-        // T8 restart wallpaper agent so it picks up the new entry. Best-effort —
-        // failures here don't roll back; entries.json mutation already succeeded.
         _ = try? await AgentRestart.restart()
         progress?(1.0)
 
-        // Persist the AerialWall manifest entry.
         let entry = AerialWallEntry(
             uuid: uuid,
-            name: name,
+            name: metadata.name,
+            description: metadata.description,
+            categoryID: metadata.categoryID,
+            subcategoryID: metadata.subcategoryID,
             originalFilename: source.lastPathComponent,
             importedAt: .now,
             durationSeconds: duration,

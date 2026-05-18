@@ -19,6 +19,43 @@ struct RootView: View {
         .sheet(isPresented: $library.showOnboarding) {
             OnboardingView(isPresented: $library.showOnboarding)
         }
+        .sheet(item: $library.activeDraft) { draft in
+            ImportSheet(
+                draft: draft,
+                onCancel: { library.cancelDraft() },
+                onContinue: { metadata in
+                    Task { await library.confirmImport(draft, metadata: metadata) }
+                }
+            )
+        }
+        .sheet(item: $library.renameTarget) { target in
+            RenameSheet(
+                target: target,
+                onCancel: { library.renameTarget = nil },
+                onConfirm: { newName in
+                    let vm = target
+                    library.renameTarget = nil
+                    Task { await library.rename(vm, to: newName) }
+                }
+            )
+        }
+        .alert(
+            "Remove \"\(library.removeTarget?.name ?? "")\"?",
+            isPresented: Binding(
+                get: { library.removeTarget != nil },
+                set: { if !$0 { library.removeTarget = nil } }
+            )
+        ) {
+            Button("Remove", role: .destructive) {
+                if let vm = library.removeTarget {
+                    library.removeTarget = nil
+                    Task { await library.remove(vm) }
+                }
+            }
+            Button("Cancel", role: .cancel) { library.removeTarget = nil }
+        } message: {
+            Text("The wallpaper will be removed from System Settings and the transcoded files in ~/Library/Application Support/AerialWall/ will be deleted.")
+        }
         .alert(
             "Import Failed",
             isPresented: Binding(

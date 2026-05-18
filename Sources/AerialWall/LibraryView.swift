@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 struct LibraryView: View {
@@ -34,6 +35,18 @@ struct LibraryView: View {
                     TableColumn("Added") { Text($0.importedAt, style: .relative) }
                 }
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
+                .contextMenu(forSelectionType: WallpaperViewModel.ID.self) { ids in
+                    if let wp = wallpaper(for: ids) {
+                        Button("Rename…") { library.renameTarget = wp }
+                        Button("Show in Finder") { reveal(wp) }
+                        Button("Copy UUID") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(wp.id, forType: .string)
+                        }
+                        Divider()
+                        Button("Remove", role: .destructive) { library.removeTarget = wp }
+                    }
+                }
             }
         }
         .toolbar {
@@ -52,11 +65,21 @@ struct LibraryView: View {
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url else { return }
                     Task { @MainActor in
-                        await library.beginImport(from: url)
+                        await library.prepareDraft(from: url)
                     }
                 }
             }
             return true
         }
+    }
+
+    private func wallpaper(for ids: Set<WallpaperViewModel.ID>) -> WallpaperViewModel? {
+        guard let id = ids.first else { return nil }
+        return displayed.first { $0.id == id }
+    }
+
+    private func reveal(_ wp: WallpaperViewModel) {
+        guard !wp.videoPath.isEmpty else { return }
+        NSWorkspace.shared.selectFile(wp.videoPath, inFileViewerRootedAtPath: "")
     }
 }

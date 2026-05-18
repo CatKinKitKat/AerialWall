@@ -4,6 +4,9 @@ public struct AerialWallEntry: Codable, Equatable, Identifiable, Sendable {
     public var id: String { uuid }
     public var uuid: String
     public var name: String
+    public var description: String
+    public var categoryID: String
+    public var subcategoryID: String
     public var originalFilename: String
     public var importedAt: Date
     public var durationSeconds: Double
@@ -12,11 +15,17 @@ public struct AerialWallEntry: Codable, Equatable, Identifiable, Sendable {
     public var thumbPath: String
     public var isInjected: Bool
 
-    public init(uuid: String, name: String, originalFilename: String,
-                importedAt: Date, durationSeconds: Double, resolution: String,
+    public init(uuid: String, name: String, description: String = "",
+                categoryID: String = Constants.StockCategory.landscapes,
+                subcategoryID: String = Constants.StockCategory.tahoeSubcategory,
+                originalFilename: String, importedAt: Date,
+                durationSeconds: Double, resolution: String,
                 videoPath: String, thumbPath: String, isInjected: Bool = false) {
         self.uuid = uuid
         self.name = name
+        self.description = description
+        self.categoryID = categoryID
+        self.subcategoryID = subcategoryID
         self.originalFilename = originalFilename
         self.importedAt = importedAt
         self.durationSeconds = durationSeconds
@@ -24,6 +33,26 @@ public struct AerialWallEntry: Codable, Equatable, Identifiable, Sendable {
         self.videoPath = videoPath
         self.thumbPath = thumbPath
         self.isInjected = isInjected
+    }
+
+    /// Custom decoder: description/categoryID/subcategoryID default when reading
+    /// pre-existing manifests written before these fields existed.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.uuid = try c.decode(String.self, forKey: .uuid)
+        self.name = try c.decode(String.self, forKey: .name)
+        self.description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
+        self.categoryID = try c.decodeIfPresent(String.self, forKey: .categoryID)
+            ?? Constants.StockCategory.landscapes
+        self.subcategoryID = try c.decodeIfPresent(String.self, forKey: .subcategoryID)
+            ?? Constants.StockCategory.tahoeSubcategory
+        self.originalFilename = try c.decode(String.self, forKey: .originalFilename)
+        self.importedAt = try c.decode(Date.self, forKey: .importedAt)
+        self.durationSeconds = try c.decode(Double.self, forKey: .durationSeconds)
+        self.resolution = try c.decode(String.self, forKey: .resolution)
+        self.videoPath = try c.decode(String.self, forKey: .videoPath)
+        self.thumbPath = try c.decode(String.self, forKey: .thumbPath)
+        self.isInjected = try c.decode(Bool.self, forKey: .isInjected)
     }
 }
 
@@ -90,6 +119,19 @@ public enum AerialWallManifestStore {
         return manifest.wallpapers.filter {
             !fm.fileExists(atPath: $0.videoPath) || !fm.fileExists(atPath: $0.thumbPath)
         }
+    }
+
+    /// Mutate a single entry by uuid via a closure, save atomically. Used for
+    /// rename + category edits.
+    public static func update(
+        uuid: String,
+        at url: URL = Constants.aerialWallManifestPath,
+        mutate: (inout AerialWallEntry) -> Void
+    ) throws {
+        var m = try load(from: url)
+        guard let i = m.wallpapers.firstIndex(where: { $0.uuid == uuid }) else { return }
+        mutate(&m.wallpapers[i])
+        try save(m, to: url)
     }
 
     /// Convenience mutator: add or replace an entry by uuid, then save.
