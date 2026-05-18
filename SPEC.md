@@ -159,6 +159,13 @@ AerialWallKit       → shared framework (models, Constants, JSON codec)
 
 ⊥ AerialWallHelper target — no privileged operation needed.
 
+### GUI reference
+
+UI/UX detail (window structure, sidebar, toolbar, library, alerts, onboarding,
+settings, menubar extra, keyboard shortcuts) lives in `GUI.md` at repo root.
+GUI.md's §Tahoe reconciliation appendix overrides any of its sections that
+conflict with this SPEC. T12, T13, and the UX surfaces of T15 cite GUI.md.
+
 ### SPM deps
 
 ```
@@ -201,6 +208,11 @@ V28: category mutation scope → AerialWall touches only categories it created (
 V29: uninstall → strip AerialWall entries from `entries.json` (by AerialWall manifest UUID list), delete `videos/<UUID>.mov` + `thumbnails/<UUID>.png`, delete `~/Library/Application Support/AerialWall/`, unload LaunchAgent, restart `WallpaperAgent`
 V30: backup safety → before first inject, snapshot `entries.json` → `~/Library/Application Support/AerialWall/backups/entries.json.<ISO8601>.bak`; retain ≥3 most recent
 V31: hardlinking ⊥ used for injected `.mov` — always a real copy of transcoded output (originals may be at different paths; users may delete; refcount surprises break expectations)
+V32: UI colors → semantic only (`.primary`, `.secondary`, `.tertiary`, `Color(.windowBackgroundColor)`, `Color(.separatorColor)`, `Color(.textBackgroundColor)`, `.tint(Color.accentColor)`). ⊥ hardcoded hex anywhere
+V33: UI components → native AppKit/SwiftUI only. ⊥ custom titlebar, ⊥ hidden traffic lights, ⊥ custom progress indicators, ⊥ custom toasts/badges/sheets. Use `NSAlert`, `NSOpenPanel`, `ProgressView`, `ContentUnavailableView`, `Table`, `Form.formStyle(.grouped)`
+V34: only non-system UI tweak permitted = thumbnail corner radius 8pt. Everything else system-default
+V35: ⊥ helper-install onboarding step (no helper exists on Tahoe — V6). Onboarding shows only when `Constants.entriesJSONPath` is absent, & lists "Open System Settings → Wallpaper" steps
+V36: user-facing path text → `~/Library/Application Support/AerialWall/...` (V22). ⊥ "/Users/Shared/AerialWall/..." in any UI string
 
 ## §T
 
@@ -237,4 +249,5 @@ B3 |2026-05-18|v1 §4.2 spec'd `launchctl kickstart -k system/<label>` for daemo
 B4 |2026-05-18|v1 implicitly assumed `accessibilityLabel` = display name. Live probe: `localizedNameKey` renders LITERALLY when bundle key absent; that's the actual display string. `accessibilityLabel` is VoiceOver-only. |V9,V10
 B5 |2026-05-18|v1 V11 said "uuid lowercased". Apple uses UPPERCASE UUIDs in `entries.json:id` + filenames.       |V7
 B6 |2026-05-18|v1 §13.3 prescribed a SQLite-schema-probe CLI (T3). Moot — no SQLite. Repurposed T3 as JSON-schema probe + version-gate. |T3
+B7 |2026-05-18|External GUI/UX spec arrived describing privileged-helper onboarding, /Users/Shared paths, "Base Apple asset" slot-hook picker — all macOS-15-era assumptions that don't apply on Tahoe (V6, V22). Saved to GUI.md with §Tahoe reconciliation appendix overriding 6 items (R1–R6). |V32,V33,V34,V35,V36
 ```
