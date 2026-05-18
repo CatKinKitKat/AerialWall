@@ -68,9 +68,14 @@ public enum TranscodeEngine {
         // V1 SDR bt709: set via the `setparams` filter so the metadata is embedded
         // at the filter graph level. Output-level `-color_*` flags are unreliable
         // with hevc_videotoolbox and may be stripped from the bitstream.
+        // V44: `setpts=PTS-STARTPTS` forces the output's first frame PTS to 0.
+        // Without it VT/source can yield a 1-frame start_time offset (~33ms);
+        // WallpaperAerialsExtension seeks to t=0 for its still frame and finds
+        // nothing there → gray fallback on unlock (B14).
         let vf = "scale=\(options.width):\(options.height):force_original_aspect_ratio=decrease," +
             "pad=\(options.width):\(options.height):(ow-iw)/2:(oh-ih)/2," +
-            "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
+            "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv," +
+            "setpts=PTS-STARTPTS"
         return [
             "-y",
             "-nostdin",                                          // V38: ⊥ tty stdin handling — hangs in tcsetattr when run as subprocess
@@ -84,6 +89,7 @@ public enum TranscodeEngine {
             "-profile:v", "main10",                             // V1
             "-pix_fmt", "p010le",                               // V1 (10-bit)
             "-b:v", options.bitrate,
+            "-muxdelay", "0", "-muxpreload", "0",                // V44: no muxer-side preroll padding
             "-movflags", "+faststart",
             "-f", "mov",
             output.path,

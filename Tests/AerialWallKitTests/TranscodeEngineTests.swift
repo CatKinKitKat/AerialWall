@@ -112,6 +112,20 @@ struct TranscodeEngineTests {
 
     /// Generate a 1-second 720p test clip with audio, transcode through our engine,
     /// verify output: HEVC Main 10, hvc1 tag, 3840×2160, no audio, playable.
+    @Test func argBuilderIncludesZeroStartPTS() {
+        let args = TranscodeEngine.buildArgs(
+            input: URL(fileURLWithPath: "/tmp/in.mp4"),
+            output: URL(fileURLWithPath: "/tmp/out.mov"),
+            options: TranscodeOptions(),
+            resolvedEncoder: .videoToolbox
+        )
+        // V44: setpts=PTS-STARTPTS in the vf chain forces first-frame PTS = 0
+        let vfIx = args.firstIndex(of: "-vf")!
+        #expect(args[vfIx + 1].contains("setpts=PTS-STARTPTS"))
+        #expect(args.contains("-muxdelay"))
+        #expect(args.contains("-muxpreload"))
+    }
+
     @Test func endToEndTranscodeMatchesAppleSpec() async throws {
         let ffmpeg: URL
         do { ffmpeg = try TranscodeEngine.detectFFmpeg() }
@@ -179,5 +193,8 @@ struct TranscodeEngineTests {
         #expect(pixfmt.contains("10le"), "pix_fmt was \(pixfmt)")
         // V1: bt709
         #expect((s["color_primaries"] as? String) == "bt709")
+        // V44: first frame starts at PTS = 0 (no encoder delay carried through)
+        let startTime = Double(s["start_time"] as? String ?? "0") ?? 0
+        #expect(startTime == 0.0, "start_time was \(startTime), expected 0")
     }
 }
