@@ -212,7 +212,7 @@ T3 |x |entries.json codec: parse v1, schema-version probe, atomic write    |V14,
 T4 |x |InjectionEngine: append asset, verify post-restart, remove          |V7,V13,V14,V20
 T5 |x |TranscodeEngine: FFmpegKit + hevc_videotoolbox + libx265 fallback   |V1,V2,V3,V23
 T6 |x |ThumbnailGenerator: AVAssetImageGenerator → PNG @ t=1s              |§I
-T7 |. |AerialWallManifest: Codable load/save manifest.json                 |V22
+T7 |x |AerialWallManifest: Codable load/save manifest.json                 |V22
 T8 |. |AgentRestartHelper: PID lookup + SIGTERM + post-kill wait           |V16,V17,V18
 T9 |. |PersistenceWatcher: FSEvents on entries.json + manifest.tar         |V19,V20
 T10|. |LaunchAgent: install/uninstall, plist @ ~/Library/LaunchAgents/     |§I
