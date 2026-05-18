@@ -215,7 +215,7 @@ T6 |x |ThumbnailGenerator: AVAssetImageGenerator → PNG @ t=1s              |§
 T7 |x |AerialWallManifest: Codable load/save manifest.json                 |V22
 T8 |x |AgentRestartHelper: PID lookup + SIGTERM + post-kill wait           |V16,V17,V18
 T9 |x |PersistenceWatcher: FSEvents on entries.json + manifest.tar         |V19,V20
-T10|. |LaunchAgent: install/uninstall, plist @ ~/Library/LaunchAgents/     |§I
+T10|x |LaunchAgent: install/uninstall, plist @ ~/Library/LaunchAgents/     |§I
 T11|. |Backup mgr: snapshot entries.json before inject, retain 3           |V30
 T12|. |SwiftUI UI: library grid, import sheet, apply, status indicator     |§I
 T13|. |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
