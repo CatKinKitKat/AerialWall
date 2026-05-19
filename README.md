@@ -8,7 +8,7 @@
 
   [![Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/CatKinKitKat/AerialWall/releases)
   [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-brightgreen)](https://www.apple.com/macos/)
-  [![MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+  [![AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 </div>
 
 ---
@@ -66,4 +66,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the branch model and spec-driven de
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0](LICENSE)

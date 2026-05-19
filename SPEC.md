@@ -11,7 +11,7 @@ FOSS macOS app, Tahoe-only. User videos → transcode HEVC Main10 → drop in `~
 - target: macOS 26 (Tahoe) ≥ 26.4
 - Swift 6, Xcode 16+
 - arch: arm64 + x86_64
-- license: MIT
+- license: AGPL-3.0
 - distro: DMG / Homebrew cask, ⊥ App Store
 - sandbox: false (writes `~/Library/...`)
 - Hardened Runtime: on
