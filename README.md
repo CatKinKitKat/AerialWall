@@ -1,30 +1,69 @@
-# AerialWall: Native Video Wallpapers for macOS Tahoe
+<div align="center">
+  <img src="Assets/icon-glass.png" alt="AerialWall" width="180" />
 
-AerialWall is a lightweight, non-sandboxed utility that allows you to use any video as a native macOS wallpaper. It injects your videos directly into the macOS 26 (Tahoe) wallpaper manifest, making them appear alongside Apple's official Aerial shots.
+  # AerialWall
+
+  **Native video wallpapers for macOS Tahoe.**  
+  Import any video. It shows up in System Settings — just like Apple's own aerials.
+
+  [![Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/CatKinKitKat/AerialWall/releases)
+  [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-brightgreen)](https://www.apple.com/macos/)
+  [![MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+</div>
+
+---
+
+## What it does
+
+AerialWall transcodes your video into the exact HEVC format macOS expects, injects it into the wallpaper manifest, and adds it as a native **AerialWall** category in System Settings → Wallpaper. No overlays. No fake windows. No custom renderers — your wallpaper plays through the same `WallpaperAerialsExtension` that Apple's own aerials use.
 
 ## Features
-- **Native Integration:** Injected wallpapers appear in System Settings → Wallpaper.
-- **Tahoe Optimized:** Specifically built for the new JSON-based manifest architecture in macOS 26.
-- **High Performance:** Uses native VideoToolbox HEVC encoding with 2-layer temporal hierarchy for smooth lock-screen transitions.
-- **Open Source:** MIT licensed, no telemetry, no background "helper" apps needed for rendering (uses system agents).
 
-## How it Works
-AerialWall transcodes your videos into a specific HEVC format that the macOS `WallpaperAerialsExtension` accepts. It then snapshots your `entries.json`, injects your asset metadata, and restarts the `WallpaperAgent` to apply the changes.
+- **Native integration** — appears in System Settings → Wallpaper alongside Apple's landscapes
+- **Lock screen + desktop** — works on both, survives lock/unlock cycle
+- **Tahoe-native** — built around macOS 26's JSON manifest architecture (`entries.json`)
+- **Hardware-accelerated** — VideoToolbox HEVC with 2-layer temporal hierarchy (required by `WallpaperAerialsExtension`)
+- **Non-destructive** — full backup of `entries.json` before every change, atomic writes throughout
+- **Open source** — MIT, no telemetry, no subscription
 
 ## Requirements
-- **macOS 26 (Tahoe)** or later.
-- **Non-sandboxed:** Required to modify `~/Library/Application Support/com.apple.wallpaper`.
+
+- **macOS 26 (Tahoe) ≥ 26.4**
+- **Non-sandboxed** — needs access to `~/Library/Application Support/com.apple.wallpaper`
 
 ## Installation
-*Coming soon via Homebrew.*
 
-For now, build from source:
+> DMG packaging coming in the next milestone (T16).
+
+Build from source:
+
 ```bash
-swift build -c release
+git clone https://github.com/CatKinKitKat/AerialWall
+cd AerialWall
+swift run AerialWall
 ```
 
+## Supported formats
+
+| Format | Notes |
+|--------|-------|
+| `.mp4`, `.mov`, `.m4v` | ✅ Direct import |
+| `.webm`, `.mkv`, `.avi` | ❌ Convert to `.mp4` first (HandBrake) |
+
+## How it works
+
+1. You pick a video in the import sheet (name + description)
+2. AerialWall transcodes it to HEVC Main 10 with the right 2-layer temporal structure
+3. The result lands in `~/Library/Application Support/com.apple.wallpaper/aerials/`
+4. Your video appears in the **AerialWall** category in System Settings → Wallpaper
+5. A persistence watcher re-injects entries if macOS ever resets the manifest
+
+See [`SPEC.md`](SPEC.md) for the full reverse-engineering notes and invariants.
+
 ## Contributing
-See [RESEARCH.md](RESEARCH.md) for technical details on the Tahoe wallpaper architecture.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the branch model and spec-driven development workflow.
 
 ## License
-MIT
+
+[MIT](LICENSE)
