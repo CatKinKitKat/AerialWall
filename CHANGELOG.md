@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.0-beta.3] — 2026-05-19
+
+### Added
+- **Real Logs viewer** reading from `OSLogStore` for subsystem
+  `com.aerialwall.kit`. Time-range picker (5min..24h), level filter pills,
+  searchable, color-coded by severity.
+- **Developer menu** in the macOS top menu bar with a "Show Logs in Sidebar"
+  toggle. Logs sidebar entry is hidden by default and only appears when
+  the toggle is on (`@AppStorage("aerialwall.developerMode")`).
+
+### Distribution
+- CI + Release runners moved to **macos-26** with Xcode 26 selected via
+  `maxim-lobanov/setup-xcode`. The release build now invokes the real
+  `actool` against `AerialWall.icon`, producing a multi-appearance
+  `Assets.car` (light + dark + tinted), with the pre-rendered files as
+  a fallback for older toolchains.
+
 ## [0.1.0-beta.2] — 2026-05-19
 
 Second beta. Polish pass + distribution pipeline.
