@@ -40,13 +40,26 @@ AerialWall transcodes your video into the exact HEVC format macOS expects, injec
 
 ## Installation
 
-> DMG packaging coming in the next milestone (T16).
+**From the GitHub release** (recommended) — download the `AerialWall-*.zip` from
+the [releases page](https://github.com/CatKinKitKat/AerialWall/releases), unzip,
+and drag `AerialWall.app` to `/Applications`.
 
-Build from source:
+> The first time you open it macOS Gatekeeper may flag it as "from an
+> unidentified developer" until a signed/notarized release lands. Right-click
+> → Open to bypass once.
+
+**From source:**
 
 ```bash
 git clone https://github.com/CatKinKitKat/AerialWall
 cd AerialWall
+./scripts/build-app.sh       # produces build/AerialWall.app
+open build/AerialWall.app
+```
+
+Or run without bundling:
+
+```bash
 swift run AerialWall
 ```
 
