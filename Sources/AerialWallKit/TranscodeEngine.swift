@@ -69,13 +69,7 @@ public enum TranscodeEngine {
         let nominalFps = try await videoTrack.load(.nominalFrameRate)
         let srcFps = Double(nominalFps > 0 ? nominalFps : 30)
         let duration = try await asset.load(.duration)
-
-        // V49: trim leading black frames. WallpaperAerialsExtension snapshots
-        // PTS=0 for the desktop preview; user videos often fade in from black
-        // and the snapshot would otherwise be black (B18).
-        let leadingOffset = await Self.detectLeadingNonBlackTime(asset: asset)
-        let effectiveStart = leadingOffset
-        let durationSec = max(0, duration.seconds - effectiveStart.seconds)
+        let durationSec = duration.seconds
 
         // Compose scale+pad transform: aspect-fit into renderSize, black bars.
         let composition = makeComposition(
@@ -114,9 +108,6 @@ public enum TranscodeEngine {
         } catch {
             throw TranscodeError.readerSetupFailed("\(error)")
         }
-        if effectiveStart > .zero {
-            reader.timeRange = CMTimeRange(start: effectiveStart, end: duration)
-        }
         let readerSettings: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String:
                 kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
@@ -132,8 +123,7 @@ public enum TranscodeEngine {
             throw TranscodeError.encodeFailed(
                 writer.error?.localizedDescription ?? "writer.startWriting failed")
         }
-        // V49: rebase output PTS to 0 even when reading from a non-zero source time.
-        writer.startSession(atSourceTime: effectiveStart)
+        writer.startSession(atSourceTime: .zero)
         guard reader.startReading() else {
             throw TranscodeError.encodeFailed(
                 reader.error?.localizedDescription ?? "reader.startReading failed")
@@ -307,63 +297,6 @@ public enum TranscodeEngine {
                 }
             }
         }
-    }
-
-    /// V49: scan first frames of a source asset and return the timestamp of the
-    /// first non-black frame. Used to trim leading fade-from-black so the
-    /// wallpaper extension's PTS=0 snapshot lands on real content.
-    /// Falls back to `.zero` if every scanned frame is black or scanning fails.
-    static func detectLeadingNonBlackTime(
-        asset: AVAsset,
-        maxScanSeconds: Double = 5.0,
-        sampleInterval: Double = 0.25,
-        meanLuminanceThreshold: Double = 25.0      // 0…255, ~10% of full range
-    ) async -> CMTime {
-        let gen = AVAssetImageGenerator(asset: asset)
-        gen.appliesPreferredTrackTransform = true
-        gen.maximumSize = CGSize(width: 96, height: 54)
-        gen.requestedTimeToleranceBefore = .zero
-        gen.requestedTimeToleranceAfter = CMTime(seconds: sampleInterval, preferredTimescale: 600)
-
-        var t = 0.0
-        while t < maxScanSeconds {
-            let cm = CMTime(seconds: t, preferredTimescale: 600)
-            if let (image, _) = try? await gen.image(at: cm),
-               meanLuminance(image) > meanLuminanceThreshold {
-                return cm
-            }
-            t += sampleInterval
-        }
-        return .zero
-    }
-
-    static func meanLuminance(_ image: CGImage) -> Double {
-        let w = image.width
-        let h = image.height
-        guard w > 0, h > 0 else { return 0 }
-        let bytesPerRow = w * 4
-        var pixels = [UInt8](repeating: 0, count: bytesPerRow * h)
-        let cs = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: &pixels, width: w, height: h, bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow, space: cs,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return 0 }
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-        var sum: Double = 0
-        var n: Double = 0
-        // Rec. 709 luma; sample every 2nd pixel to cut work 4×
-        for y in stride(from: 0, to: h, by: 2) {
-            for x in stride(from: 0, to: w, by: 2) {
-                let i = y * bytesPerRow + x * 4
-                let r = Double(pixels[i])
-                let g = Double(pixels[i + 1])
-                let b = Double(pixels[i + 2])
-                sum += 0.2126 * r + 0.7152 * g + 0.0722 * b
-                n += 1
-            }
-        }
-        return n > 0 ? sum / n : 0
     }
 
     private static func finishWriting(writer: AVAssetWriter) async throws {
