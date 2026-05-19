@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.0-beta.5] — 2026-05-19
+
+### Fixed
+- Sidebar navigation was sticky after visiting **Logs** — clicking
+  "All Wallpapers" did nothing because the dynamic `.badge(count)` modifier
+  was interfering with `List(selection:)` tag matching. Switched to
+  `NavigationLink(value:)` rows and added `.id(selection)` on the detail
+  view so SwiftUI recreates it cleanly when the sidebar selection changes.
+
 ## [0.1.0-beta.4] — 2026-05-19
 
 ### Fixed
