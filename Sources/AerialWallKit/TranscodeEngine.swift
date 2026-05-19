@@ -4,13 +4,8 @@ import VideoToolbox
 import CoreMedia
 
 public struct TranscodeOptions: Sendable {
-    /// V50: target 2880×1620 — VT public API caps HEVC Main10 temporal hierarchy
-    /// at 3 sub-layers above this resolution; below it we get 4 layers, which
-    /// is what `WallpaperAerialsExtension`'s level-3 reader needs on the desktop
-    /// apply path (B19). 2880×1620 is above MacBook Air M1 native (2560×1600)
-    /// and 1440p Retina, so upscale on common Mac displays is imperceptible.
-    public var width: Int = 2880
-    public var height: Int = 1620
+    public var width: Int = 3840
+    public var height: Int = 2160
     /// Target average bitrate in bits/sec. Apple stock encodes ~12.4 Mbps.
     public var bitrate: Int = 20_000_000
     public init() {}
@@ -173,23 +168,19 @@ public enum TranscodeEngine {
         options: TranscodeOptions,
         srcFps: Double
     ) -> [String: Any] {
-        // V50: 4-layer hierarchical HEVC (temporal_id 0..3).
-        // WallpaperAerialsExtension's video-sample-reader uses TWO selection
-        // levels depending on render path (B19):
-        //   - lock/unlock path: "our level is 2" — needs temporal_id ≥ 1
-        //   - desktop apply path: "our level is 3" — needs temporal_id ≥ 3
-        // V48's srcFps/2 only produced 2 layers (max temporal_id=1), satisfying
-        // level 2 but not level 3 → desktop showed black on apply, only worked
-        // post lock/unlock. VT's BaseLayerFrameRate at srcFps/8 produces 4
-        // temporal sub-layers (VT-internal cap — going lower doesn't add more).
-        // Apple stock content has 5 layers (id 0..4); 4 is sufficient.
+        // V48: 2-layer hierarchical HEVC. WallpaperAerialsExtension's
+        // video-sample-reader filters frames by temporal_id. Single-layer
+        // encodes (temporal_id=0 only) cause unlock-gray (B17). Two layers
+        // (base temporal_id=0 + enhancement temporal_id=1 via
+        // BaseLayerFrameRate=srcFps/2) satisfies both render paths —
+        // confirmed by A/B/C/D variant testing on Tahoe Day source.
         let compression: [String: Any] = [
             AVVideoAverageBitRateKey: options.bitrate,
             AVVideoMaxKeyFrameIntervalKey: 60,
             AVVideoExpectedSourceFrameRateKey: Int(srcFps.rounded()),
             AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel as String,
             AVVideoAllowFrameReorderingKey: true,
-            kVTCompressionPropertyKey_BaseLayerFrameRate as String: srcFps / 8.0,
+            kVTCompressionPropertyKey_BaseLayerFrameRate as String: srcFps / 2.0,
         ]
         return [
             AVVideoCodecKey: AVVideoCodecType.hevc,
