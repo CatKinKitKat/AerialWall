@@ -47,18 +47,23 @@ public enum AgentRestart {
         timeout: TimeInterval = 5
     ) async throws -> pid_t {
         guard let oldPID = try findAgentPID(label: label) else {
+            AerialLog.agent.error("agent not running: \(label, privacy: .public)")
             throw AgentRestartError.agentNotFound(label: label)
         }
+        AerialLog.agent.info("restarting \(label, privacy: .public) (pid=\(oldPID))")
         if kill(oldPID, SIGTERM) != 0 {
+            AerialLog.agent.error("kill(\(oldPID), SIGTERM) failed: errno=\(errno)")
             throw AgentRestartError.signalFailed(errno: errno)
         }
         let deadline = Date.now.addingTimeInterval(timeout)
         while Date.now < deadline {
             if let newPID = try? findAgentPID(label: label), newPID != oldPID {
+                AerialLog.agent.info("respawned (new pid=\(newPID))")
                 return newPID
             }
-            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+            try? await Task.sleep(nanoseconds: 100_000_000)
         }
+        AerialLog.agent.error("respawn timeout after \(timeout)s")
         throw AgentRestartError.respawnTimeout
     }
 }

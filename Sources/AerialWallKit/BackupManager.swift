@@ -32,6 +32,7 @@ public enum BackupManager {
         let target = toDir.appending(path: "\(backupPrefix)\(timestamp(now))\(backupSuffix)")
         try FileManager.default.copyItem(at: source, to: target)
         try prune(in: toDir, retainCount: retainCount)
+        AerialLog.backup.info("snapshot \(target.lastPathComponent, privacy: .public)")
         return target
     }
 

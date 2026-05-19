@@ -21,8 +21,10 @@ public enum WallpaperSetterError: Error, LocalizedError {
 public enum WallpaperSetter {
 
     public static func apply(assetID: String) throws {
+        AerialLog.setter.info("apply assetID=\(assetID, privacy: .public)")
         let url = Constants.wallpaperIndexPlist
         guard FileManager.default.fileExists(atPath: url.path) else {
+            AerialLog.setter.error("Index.plist missing at \(url.path, privacy: .public)")
             throw WallpaperSetterError.indexPlistMissing
         }
 
@@ -71,6 +73,12 @@ public enum WallpaperSetter {
             block["Type"] = "linked"
             outer[key] = block
         }
+        // V53: clear per-display and per-Space overrides so the new wallpaper
+        // applies uniformly across every monitor and Mission Control space.
+        // Leaving `Displays` populated causes external monitors to retain the
+        // previous wallpaper after Apply.
+        outer["Displays"] = [String: Any]()
+        outer["Spaces"]   = [String: Any]()
 
         do {
             let data = try PropertyListSerialization.data(
@@ -81,11 +89,16 @@ public enum WallpaperSetter {
             throw WallpaperSetterError.writeFailed("\(error)")
         }
 
+        AerialLog.setter.info("Index.plist written, signalling WallpaperAgent")
         // Signal WallpaperAgent so it picks up the new selection immediately.
         // Best-effort — if it fails, the change takes effect on the next
         // natural agent cycle.
-        // Fire-and-forget restart via a detached Task so the synchronous
-        // caller doesn't need to await.
-        Task.detached { _ = try? await AgentRestart.restart() }
+        Task.detached {
+            do {
+                try await AgentRestart.restart()
+            } catch {
+                AerialLog.setter.warning("agent restart after apply failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 }

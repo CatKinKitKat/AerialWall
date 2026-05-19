@@ -31,7 +31,7 @@ AerialWall transcodes your video into the exact HEVC format macOS expects, injec
 - **Tahoe-native** — built around macOS 26's JSON manifest architecture (`entries.json`)
 - **Hardware-accelerated** — VideoToolbox HEVC with 2-layer temporal hierarchy (required by `WallpaperAerialsExtension`)
 - **Non-destructive** — full backup of `entries.json` before every change, atomic writes throughout
-- **Open source** — MIT, no telemetry, no subscription
+- **Open source** — AGPL-3.0, no telemetry, no subscription
 
 ## Requirements
 

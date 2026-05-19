@@ -71,6 +71,7 @@ public enum InjectionEngine {
         into entriesURL: URL = Constants.entriesJSONPath,
         upsertCategory: Category? = nil
     ) throws -> EntriesManifest {
+        AerialLog.injection.info("inject asset id=\(asset.id, privacy: .public) name=\(asset.localizedNameKey, privacy: .public)")
         try asset.validate()
         try gateSchema(at: entriesURL)
 

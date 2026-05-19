@@ -226,6 +226,9 @@ V46: transcoded `.mov` MUST include B-frames. Apple stock encodes have `has_b_fr
 V47: reverted (libx265 path) — also failed unlock-rebind. ffmpeg's `hevc_videotoolbox` wrapper failed because it doesn't expose VT's `kVTCompressionPropertyKey_BaseLayerFrameRate`. libx265 failed because no public x265 flag produces enough HEVC temporal sub-layers. Resolution: V48
 V48: TranscodeEngine is **pure native** — `AVURLAsset` + `AVVideoComposition.Configuration` (scale/pad/color/orientation) + `AVAssetWriter` w/ VideoToolbox HEVC encoder driven by `kVTCompressionPropertyKey_BaseLayerFrameRate`. WallpaperAerialsExtension's `video-sample-reader` filters by HEVC `temporal_id`; single-layer encodes get every frame skipped → wallpaper purged (B17). ⊥ ffmpeg in runtime pipeline (only used in tests for testsrc synthesis). WebM container inputs fail at `loadTracks` (AVAssetReader doesn't support WebM on Tahoe) — surfaced as `TranscodeError.inputFormatUnsupported`.
 V50: reverted. A/B/C/D variant test (Apple Tahoe Day source, 60s, 4 variants) showed: Tests A+D (single-layer, 0 and 1) failed unlock. Tests B+C (2-layer and 4-layer) both worked end-to-end including desktop apply. Conclusion: **2-layer is sufficient** for all render paths. The "level 3 reader needs temporal_id ≥ 3" hypothesis was wrong — reader is happy with temporal_id ≥ 1. B19's 2880p + 4-layer config was unnecessary. Reverted to V48 (4K + `BaseLayerFrameRate=srcFps/2`). See B20.
+V51: Structured logging via `os.Logger`, subsystem `com.aerialwall.kit`, one category per engine (`injection`, `transcode`, `agent`, `watcher`, `setter`, `backup`, `manifest`). Inspect live via Console.app `subsystem == com.aerialwall.kit`. ⊥ `print` for diagnostic output in `AerialWallKit`.
+V52: Every public `Error` type in `AerialWallKit` MUST conform to `LocalizedError` with an actionable `errorDescription` aimed at the end user (not the developer). UI surfaces `(error as? LocalizedError)?.errorDescription ?? "\(error)"` — without conformance, the user sees raw enum-case syntax. Conformance lives in `AerialErrors+Localized.swift` (centralised), except `TranscodeError` and `WallpaperSetterError` whose conformance is co-located with the enum.
+V53: `WallpaperSetter.apply` MUST clear `Index.plist:Displays` and `Index.plist:Spaces` (per-monitor and per-Space override dicts) before writing. Leaving them populated causes external monitors and other Mission Control spaces to retain the previous wallpaper. The `AllSpacesAndDisplays` block only takes effect when no per-display/per-Space overrides exist.
 
 ## §T
 
@@ -244,7 +247,7 @@ T10|x |LaunchAgent: install/uninstall, plist @ ~/Library/LaunchAgents/     |§I
 T11|x |Backup mgr: snapshot entries.json before inject, retain 3           |V30
 T12|x |SwiftUI UI: library grid, import sheet, apply, status indicator     |§I,GUI
 T13|x |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
-T14|. |Error handling: missing entries.json, schema mismatch, restart fail, Apple manifest re-pull drift, multi-display |V20,V21
+T14|x |Error handling: LocalizedError on all engines, os.Logger sweep, multi-display Index.plist|V20,V21,V51,V52,V53
 T15|. |Uninstall flow: strip entries, delete files, restore backup if asked|V29
 T16|. |Notarization + DMG packaging                                        |§C
 T17|. |Unit tests: Transcode validation, Injection (vs entries.json copy), Watcher, Manifest |V1,V2,V14

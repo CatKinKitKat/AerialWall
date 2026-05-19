@@ -51,6 +51,7 @@ public enum TranscodeEngine {
         options: TranscodeOptions = .init(),
         progress: TranscodeProgress? = nil
     ) async throws {
+        AerialLog.transcode.info("start \(input.lastPathComponent, privacy: .public) → \(output.lastPathComponent, privacy: .public) at \(options.width)x\(options.height)@\(options.bitrate)bps")
         let asset = AVURLAsset(url: input)
         // AVAssetReader doesn't support WebM (and a few other containers) on
         // Tahoe; `load(.isReadable)` throws -17913 in that case.
@@ -138,6 +139,7 @@ public enum TranscodeEngine {
         )
 
         try await finishWriting(writer: writer)
+        AerialLog.transcode.info("done \(output.lastPathComponent, privacy: .public)")
     }
 
     /// V4: `AVURLAsset.isPlayable` post-encode check.
