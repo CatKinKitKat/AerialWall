@@ -251,7 +251,7 @@ T13|x |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
 T14|x |Error handling: LocalizedError on all engines, os.Logger sweep, multi-display Index.plist|V20,V21,V51,V52,V53
 T15|x |Uninstall flow: strip entries, delete files, restore backup if asked|V29
 T16|~ |.app bundle + Info.plist + .icns done via scripts/build-app.sh. Codesign+notarize+DMG in scripts/notarize.sh (requires Apple Developer creds)|§C
-T17|. |Unit tests: Transcode validation, Injection (vs entries.json copy), Watcher, Manifest |V1,V2,V14
+T17|x |Unit tests: 80 across all engines (Injection/Watcher/Manifest/Transcode/WallpaperSetter/Uninstall/LocalizedError) |V1,V2,V14
 T18|. |Integration test on Tahoe 26.4+: full flow, manifest re-pull survival, apply|V20,V29
 T19|. |Manual matrix: M1/M2/M3 + Intel, 26.x patch versions, single/multi display, SIP on/off |§C
 ```

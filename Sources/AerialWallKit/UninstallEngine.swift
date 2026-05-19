@@ -5,36 +5,68 @@ public enum UninstallError: Error {
     case incomplete([String])    // list of paths that failed to delete
 }
 
+/// Path bundle for uninstall. Defaults to the real Constants paths; tests
+/// can pass an alternate context pointing at a sandbox.
+public struct UninstallContext: Sendable {
+    public var aerialWallRoot:          URL
+    public var aerialWallManifestPath:  URL
+    public var aerialWallBackupsDir:    URL
+    public var entriesJSONPath:         URL
+    public var wallpaperVideosDir:      URL
+    public var wallpaperThumbnailsDir:  URL
+    public var launchAgentPlist:        URL
+    public var signalAgentOnFinish:     Bool
+
+    public init(
+        aerialWallRoot:         URL = Constants.aerialWallRoot,
+        aerialWallManifestPath: URL = Constants.aerialWallManifestPath,
+        aerialWallBackupsDir:   URL = Constants.aerialWallBackupsDir,
+        entriesJSONPath:        URL = Constants.entriesJSONPath,
+        wallpaperVideosDir:     URL = Constants.wallpaperVideosDir,
+        wallpaperThumbnailsDir: URL = Constants.wallpaperThumbnailsDir,
+        launchAgentPlist:       URL = Constants.launchAgentPlist,
+        signalAgentOnFinish:    Bool = true
+    ) {
+        self.aerialWallRoot         = aerialWallRoot
+        self.aerialWallManifestPath = aerialWallManifestPath
+        self.aerialWallBackupsDir   = aerialWallBackupsDir
+        self.entriesJSONPath        = entriesJSONPath
+        self.wallpaperVideosDir     = wallpaperVideosDir
+        self.wallpaperThumbnailsDir = wallpaperThumbnailsDir
+        self.launchAgentPlist       = launchAgentPlist
+        self.signalAgentOnFinish    = signalAgentOnFinish
+    }
+}
+
 /// V29 + T15. Full uninstall workflow:
 ///  1. Strip AerialWall assets from `entries.json` (by AerialWall manifest UUIDs)
 ///  2. Delete the `videos/<UUID>.mov` and `thumbnails/<UUID>.png` files for each
 ///  3. Delete `~/Library/Application Support/AerialWall/` (manifest + originals + backups)
 ///  4. Unload `~/Library/LaunchAgents/com.aerialwall.agent.plist`
 ///  5. Restart `WallpaperAgent` so it picks up the cleaned manifest
-///
-/// Two modes:
-///  - `.full`: nuke everything; restoreBackup=false
-///  - `.preservingBackup`: keep the most recent `backups/` snapshot in case the
-///    user changes their mind (they can hand-restore by copying it back)
 public enum UninstallEngine {
 
-    public enum Mode {
+    public enum Mode: Sendable {
         case full
         case preservingBackup
     }
 
     @discardableResult
-    public static func uninstall(mode: Mode = .full) async throws -> UninstallReport {
+    public static func uninstall(
+        mode: Mode = .full,
+        context: UninstallContext = UninstallContext()
+    ) async throws -> UninstallReport {
         var failed: [String] = []
         var report = UninstallReport()
+        let fm = FileManager.default
 
         AerialLog.injection.info("uninstall start mode=\(String(describing: mode), privacy: .public)")
 
         // 1. Load AerialWall's own manifest to find which UUIDs we own
         let ownedIDs: [String]
-        if FileManager.default.fileExists(atPath: Constants.aerialWallManifestPath.path) {
+        if fm.fileExists(atPath: context.aerialWallManifestPath.path) {
             do {
-                let mfst = try AerialWallManifestStore.load(from: Constants.aerialWallManifestPath)
+                let mfst = try AerialWallManifestStore.load(from: context.aerialWallManifestPath)
                 ownedIDs = mfst.wallpapers.map(\AerialWallEntry.id)
             } catch {
                 AerialLog.injection.warning("aerialwall-manifest read failed: \(error.localizedDescription, privacy: .public)")
@@ -46,18 +78,20 @@ public enum UninstallEngine {
         report.assetsConsidered = ownedIDs.count
 
         // 2. Strip from entries.json (best-effort: skip if file missing or schema mismatch)
-        if FileManager.default.fileExists(atPath: Constants.entriesJSONPath.path) {
+        if fm.fileExists(atPath: context.entriesJSONPath.path) {
             do {
-                _ = try BackupManager.snapshot()   // safety net
-                var manifest = try EntriesJSONCodec.load(from: Constants.entriesJSONPath)
+                _ = try? BackupManager.snapshot(
+                    source: context.entriesJSONPath,
+                    toDir: context.aerialWallBackupsDir,
+                    retainCount: 3)
+                var manifest = try EntriesJSONCodec.load(from: context.entriesJSONPath)
                 let before = manifest.assets.count
                 manifest.assets.removeAll { ownedIDs.contains($0.id) }
-                // Strip the AerialWall custom category itself
                 manifest.categories.removeAll {
                     $0.id == Constants.AerialWallCategory.categoryID
                 }
                 let removedCount = before - manifest.assets.count
-                try EntriesJSONCodec.writeAtomically(manifest, to: Constants.entriesJSONPath)
+                try EntriesJSONCodec.writeAtomically(manifest, to: context.entriesJSONPath)
                 report.assetsStripped = removedCount
                 AerialLog.injection.info("stripped \(removedCount) assets from entries.json")
             } catch {
@@ -67,10 +101,9 @@ public enum UninstallEngine {
         }
 
         // 3. Delete the per-asset video + thumbnail files
-        let fm = FileManager.default
         for id in ownedIDs {
-            let video = Constants.wallpaperVideosDir.appending(path: "\(id).mov")
-            let thumb = Constants.wallpaperThumbnailsDir.appending(path: "\(id).png")
+            let video = context.wallpaperVideosDir.appending(path: "\(id).mov")
+            let thumb = context.wallpaperThumbnailsDir.appending(path: "\(id).png")
             for path in [video, thumb] {
                 if fm.fileExists(atPath: path.path) {
                     do { try fm.removeItem(at: path); report.filesDeleted += 1 }
@@ -80,32 +113,34 @@ public enum UninstallEngine {
         }
 
         // 4. Delete AerialWall storage (preserve backups in .preservingBackup mode)
-        if fm.fileExists(atPath: Constants.aerialWallRoot.path) {
+        if fm.fileExists(atPath: context.aerialWallRoot.path) {
             if mode == .preservingBackup {
                 for sub in ["library", "thumbs", "originals", "manifest.json"] {
-                    let p = Constants.aerialWallRoot.appending(path: sub)
+                    let p = context.aerialWallRoot.appending(path: sub)
                     if fm.fileExists(atPath: p.path) {
                         try? fm.removeItem(at: p)
                     }
                 }
-                AerialLog.injection.info("preserved backups/ at \(Constants.aerialWallBackupsDir.path, privacy: .public)")
+                AerialLog.injection.info("preserved backups/ at \(context.aerialWallBackupsDir.path, privacy: .public)")
             } else {
-                do { try fm.removeItem(at: Constants.aerialWallRoot) }
-                catch { failed.append(Constants.aerialWallRoot.path) }
+                do { try fm.removeItem(at: context.aerialWallRoot) }
+                catch { failed.append(context.aerialWallRoot.path) }
             }
             report.storageDeleted = true
         }
 
         // 5. Unload + delete LaunchAgent plist
-        if fm.fileExists(atPath: Constants.launchAgentPlist.path) {
-            try? LaunchAgentManager.uninstall()
-            try? fm.removeItem(at: Constants.launchAgentPlist)
+        if fm.fileExists(atPath: context.launchAgentPlist.path) {
+            try? LaunchAgentManager.uninstall(at: context.launchAgentPlist)
+            try? fm.removeItem(at: context.launchAgentPlist)
             report.launchAgentRemoved = true
         }
 
-        // 6. Restart WallpaperAgent so it forgets our assets
-        do { _ = try await AgentRestart.restart() }
-        catch { AerialLog.agent.warning("restart after uninstall failed: \(error.localizedDescription, privacy: .public)") }
+        // 6. Restart WallpaperAgent (best-effort; tests skip via signalAgentOnFinish=false)
+        if context.signalAgentOnFinish {
+            do { _ = try await AgentRestart.restart() }
+            catch { AerialLog.agent.warning("restart after uninstall failed: \(error.localizedDescription, privacy: .public)") }
+        }
 
         if !failed.isEmpty {
             throw UninstallError.incomplete(failed)

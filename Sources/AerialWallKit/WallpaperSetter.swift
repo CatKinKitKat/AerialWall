@@ -20,9 +20,13 @@ public enum WallpaperSetterError: Error, LocalizedError {
 /// into entries.json, which ImportService guarantees).
 public enum WallpaperSetter {
 
-    public static func apply(assetID: String) throws {
+    public static func apply(
+        assetID: String,
+        indexPlistURL: URL = Constants.wallpaperIndexPlist,
+        signalAgent: Bool = true
+    ) throws {
         AerialLog.setter.info("apply assetID=\(assetID, privacy: .public)")
-        let url = Constants.wallpaperIndexPlist
+        let url = indexPlistURL
         guard FileManager.default.fileExists(atPath: url.path) else {
             AerialLog.setter.error("Index.plist missing at \(url.path, privacy: .public)")
             throw WallpaperSetterError.indexPlistMissing
@@ -89,15 +93,17 @@ public enum WallpaperSetter {
             throw WallpaperSetterError.writeFailed("\(error)")
         }
 
-        AerialLog.setter.info("Index.plist written, signalling WallpaperAgent")
+        AerialLog.setter.info("Index.plist written\(signalAgent ? ", signalling WallpaperAgent" : "")")
         // Signal WallpaperAgent so it picks up the new selection immediately.
         // Best-effort — if it fails, the change takes effect on the next
-        // natural agent cycle.
-        Task.detached {
-            do {
-                try await AgentRestart.restart()
-            } catch {
-                AerialLog.setter.warning("agent restart after apply failed: \(error.localizedDescription, privacy: .public)")
+        // natural agent cycle. Skipped in tests via signalAgent=false.
+        if signalAgent {
+            Task.detached {
+                do {
+                    try await AgentRestart.restart()
+                } catch {
+                    AerialLog.setter.warning("agent restart after apply failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
     }
