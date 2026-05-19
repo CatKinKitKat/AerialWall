@@ -9,9 +9,21 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        // SPM executables have no .app bundle, so macOS can't pick up the
-        // app icon automatically. Load the actool-rendered .icns from the
-        // module bundle (generated from Assets/Icon.icon via scripts/regen-icon.sh).
+        refreshAppIcon()
+        // Re-render when the user switches Light/Dark so the dock icon stays
+        // in sync (V54).
+        DistributedNotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshAppIcon),
+            name: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil
+        )
+    }
+
+    @objc private func refreshAppIcon() {
+        // Prefer the bundled .icns (already contains light + dark + tinted via
+        // Assets.car generation from Assets/Icon.icon). NSImage(byReferencingFile:)
+        // returns an image whose representations include all appearance variants.
         if let url = Bundle.module.url(forResource: "Icon", withExtension: "icns"),
            let image = NSImage(contentsOf: url) {
             NSApp.applicationIconImage = image
