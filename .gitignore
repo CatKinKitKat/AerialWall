@@ -68,4 +68,9 @@ build/
 *.app/
 *.dmg
 *.icns
+# But DO track the pre-rendered icon shipped with the SPM bundle.
+# CI's Xcode 16 actool can't compile macOS 26 .icon, so it relies on the
+# pre-rendered AerialWall.icns + .car from scripts/regen-icon.sh.
+!Sources/AerialWall/Resources/AerialWall.icns
+!Sources/AerialWall/Resources/AerialWall.car
 .DS_Store

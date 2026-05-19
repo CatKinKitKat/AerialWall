@@ -36,17 +36,26 @@ if [ -d "$BIN/AerialWall_AerialWall.bundle" ]; then
 fi
 
 echo "==> actool: compile AerialWall.icon → AerialWall.icns + Assets.car"
+# Requires Xcode 26+ (.icon format support). If actool fails (e.g. older Xcode),
+# fall back to the pre-rendered files committed in Sources/AerialWall/Resources/.
 ACTOOL_OUT=$(mktemp -d)
-xcrun actool "$ROOT/AerialWall.icon" \
+ICON_SRC="$ROOT/Sources/AerialWall/Resources"
+if xcrun actool "$ROOT/AerialWall.icon" \
     --compile "$ACTOOL_OUT" \
     --platform macosx \
     --minimum-deployment-target 26.0 \
     --app-icon AerialWall \
     --output-format human-readable-text \
-    --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null
-cp "$ACTOOL_OUT/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
-# Assets.car carries the multi-appearance renditions (light/dark/tinted)
-[ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
+    --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null 2>&1 \
+   && [ -f "$ACTOOL_OUT/AerialWall.icns" ]; then
+    echo "  using freshly-compiled icon (Xcode 26 actool)"
+    cp "$ACTOOL_OUT/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+    [ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
+else
+    echo "  actool failed/old Xcode — using pre-rendered icns/car from repo"
+    [ -f "$ICON_SRC/AerialWall.icns" ] && cp "$ICON_SRC/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+    [ -f "$ICON_SRC/AerialWall.car" ]  && cp "$ICON_SRC/AerialWall.car"  "$APP/Contents/Resources/Assets.car"
+fi
 rm -rf "$ACTOOL_OUT"
 
 echo "==> Info.plist (version=$VERSION build=$BUILD)"

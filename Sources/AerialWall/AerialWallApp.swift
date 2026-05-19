@@ -20,7 +20,7 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    @objc private func refreshAppIcon() {
+    @MainActor @objc private func refreshAppIcon() {
         // In a proper .app bundle, CFBundleIconName + Assets.car drives the
         // dock icon and macOS handles light/dark/tinted automatically. Force-
         // setting applicationIconImage = NSImage(contentsOf: icns) would lock
@@ -35,6 +35,16 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
            let image = NSImage(contentsOf: url) {
             NSApp.applicationIconImage = image
         }
+    }
+}
+
+/// Toggle for the "Developer" menu — shows/hides the Logs sidebar section.
+/// Kept in its own view so the @AppStorage binding is independent of the App
+/// scope and the menu item gets the SwiftUI checkmark state automatically.
+struct DeveloperModeToggle: View {
+    @AppStorage("aerialwall.developerMode") private var developerMode = false
+    var body: some View {
+        Toggle("Show Logs in Sidebar", isOn: $developerMode)
     }
 }
 
@@ -81,6 +91,9 @@ struct AerialWallApp: App {
                         name: Notification.Name("AerialWall.showHelp"), object: nil)
                 }
                 .keyboardShortcut("?", modifiers: .command)
+            }
+            CommandMenu("Developer") {
+                DeveloperModeToggle()
             }
         }
 
