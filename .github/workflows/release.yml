@@ -61,6 +61,7 @@ jobs:
         with:
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
+          target_commitish: ${{ github.sha }}
           files: |
             dist/*.zip
             dist/*.tar.gz
