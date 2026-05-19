@@ -47,8 +47,8 @@ swift run AerialWall
 
 | Format | Notes |
 |--------|-------|
-| `.mp4`, `.mov`, `.m4v` | ✅ Direct import |
-| `.webm`, `.mkv`, `.avi` | ❌ Convert to `.mp4` first (HandBrake) |
+| `.mp4`, `.mov`, `.m4v` | Direct import |
+| `.webm`, `.mkv`, `.avi` | Convert to `.mp4` first (HandBrake) |
 
 ## How it works
 

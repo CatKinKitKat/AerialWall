@@ -56,10 +56,10 @@ public enum WallpaperSetter {
             "Files": [] as [Any],
             "Provider": "com.apple.wallpaper.choice.aerials",
         ]
+        // NSNull is not valid in binary plist (format 200); omit Shuffle instead.
         let linked: [String: Any] = [
             "Content": [
                 "Choices": [choice],
-                "Shuffle": NSNull(),
             ] as [String: Any],
             "LastSet": Date(),
             "LastUse": Date(),
