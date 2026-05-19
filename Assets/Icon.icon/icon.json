@@ -1,26 +1,14 @@
 {
   "fill" : "system-light",
-  "fill-specializations" : {
-    "dark-color" : "system-dark"
-  },
   "groups" : [
     {
       "layers" : [
         {
           "blend-mode" : "darken",
-          "blend-mode-specializations" : {
-            "dark-color" : "lighten",
-            "dark-clear" : "lighten",
-            "light-clear" : "darken"
-          },
           "fill" : {
             "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
           },
           "glass" : false,
-          "glass-specializations" : {
-            "dark-clear" : true,
-            "light-clear" : true
-          },
           "image-name" : "generated-image.png",
           "name" : "generated-image",
           "position" : {
