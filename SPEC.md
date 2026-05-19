@@ -248,7 +248,7 @@ T11|x |Backup mgr: snapshot entries.json before inject, retain 3           |V30
 T12|x |SwiftUI UI: library grid, import sheet, apply, status indicator     |§I,GUI
 T13|x |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
 T14|x |Error handling: LocalizedError on all engines, os.Logger sweep, multi-display Index.plist|V20,V21,V51,V52,V53
-T15|. |Uninstall flow: strip entries, delete files, restore backup if asked|V29
+T15|x |Uninstall flow: strip entries, delete files, restore backup if asked|V29
 T16|. |Notarization + DMG packaging                                        |§C
 T17|. |Unit tests: Transcode validation, Injection (vs entries.json copy), Watcher, Manifest |V1,V2,V14
 T18|. |Integration test on Tahoe 26.4+: full flow, manifest re-pull survival, apply|V20,V29
