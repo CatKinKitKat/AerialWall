@@ -73,8 +73,8 @@ public enum TranscodeEngine {
         let durationSec = duration.seconds
 
         // Compose scale+pad transform: aspect-fit into renderSize, black bars.
-        let composition = makeComposition(
-            source: videoTrack,
+        let composition = compositionBridge(
+            videoTrack: videoTrack,
             naturalSize: naturalSize,
             preferredTransform: preferredTransform,
             srcFps: srcFps,
@@ -197,6 +197,32 @@ public enum TranscodeEngine {
         ]
     }
 
+    // Suppress AVMutableVideoComposition deprecation warnings (macOS 26 prefers
+    // AVVideoComposition.Configuration, but the macos-15 + Xcode 16 CI runner
+    // doesn't ship that SDK). The pattern:
+    //   1) makeComposition is @available(deprecated) → its inner AVMutable*
+    //      calls don't warn (calling deprecated APIs from deprecated context).
+    //   2) compositionBridge is also @available(deprecated) so the call from
+    //      transcode() → compositionBridge() → makeComposition() doesn't warn.
+    //   3) transcode() stays clean public API, no deprecation marker.
+    @available(*, deprecated, message: "Internal deprecation-silencer bridge — see makeComposition")
+    private static func compositionBridge(
+        videoTrack: AVAssetTrack,
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        srcFps: Double,
+        duration: CMTime,
+        targetWidth: Int,
+        targetHeight: Int
+    ) -> AVMutableVideoComposition {
+        makeComposition(
+            source: videoTrack, naturalSize: naturalSize,
+            preferredTransform: preferredTransform, srcFps: srcFps,
+            duration: duration,
+            targetWidth: targetWidth, targetHeight: targetHeight)
+    }
+
+    @available(*, deprecated, message: "Migrate to AVVideoComposition.Configuration once GitHub provides macOS 26 hosted runners")
     private static func makeComposition(
         source videoTrack: AVAssetTrack,
         naturalSize: CGSize,
