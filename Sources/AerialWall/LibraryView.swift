@@ -17,7 +17,7 @@ struct LibraryView: View {
     @Bindable var library: WallpaperLibrary
     let filter: SidebarItem
     @State private var selectedID: WallpaperViewModel.ID?
-    @AppStorage("aerialwall.libraryViewMode") private var viewModeRaw = LibraryViewMode.list.rawValue
+    @AppStorage("aerialwall.libraryViewMode") private var viewModeRaw = LibraryViewMode.grid.rawValue
 
     private var viewMode: LibraryViewMode {
         LibraryViewMode(rawValue: viewModeRaw) ?? .list
