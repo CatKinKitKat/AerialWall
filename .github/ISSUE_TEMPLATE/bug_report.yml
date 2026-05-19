@@ -1,0 +1,84 @@
+name: Bug Report
+description: Something isn't working right
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please fill in as much as possible — macOS wallpaper bugs are notoriously hard to reproduce without specifics.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: Clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that reliably trigger it.
+      placeholder: |
+        1. Import video X
+        2. Apply wallpaper
+        3. Lock screen
+        4. Unlock → gray
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: dropdown
+    id: macos
+    attributes:
+      label: macOS version
+      options:
+        - macOS 26 (Tahoe) — 26.4.x
+        - macOS 26 (Tahoe) — other
+        - macOS 15 (Sequoia)
+        - macOS 14 (Sonoma)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Mac chip
+      description: Affects VideoToolbox capabilities
+      options:
+        - Apple Silicon M1
+        - Apple Silicon M2
+        - Apple Silicon M3
+        - Apple Silicon M4
+        - Intel
+    validations:
+      required: true
+
+  - type: input
+    id: source_format
+    attributes:
+      label: Source video format
+      description: e.g. H.264 1080p MP4, AV1 4K WebM, ProRes MOV…
+      placeholder: H.264 1080p MP4
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error messages
+      description: |
+        Paste any error shown in AerialWall, or output from:
+        `log show --predicate 'process CONTAINS "Wallpaper"' --info --last 1m`
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
