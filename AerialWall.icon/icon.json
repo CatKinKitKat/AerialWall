@@ -1,5 +1,14 @@
 {
-  "fill" : "system-light",
+  "color-space-for-untagged-svg-colors" : "display-p3",
+  "fill-specializations" : [
+    {
+      "value" : "system-light"
+    },
+    {
+      "idiom" : "square",
+      "value" : "system-light"
+    }
+  ],
   "groups" : [
     {
       "layers" : [

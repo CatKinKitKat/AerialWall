@@ -21,10 +21,11 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func refreshAppIcon() {
-        // Prefer the bundled .icns (already contains light + dark + tinted via
-        // Assets.car generation from Assets/Icon.icon). NSImage(byReferencingFile:)
-        // returns an image whose representations include all appearance variants.
-        if let url = Bundle.module.url(forResource: "Icon", withExtension: "icns"),
+        // Bundled .icns from AerialWall.icon. In an .app bundle the system
+        // picks the right Aqua/DarkAqua/Tintable rendition from Assets.car
+        // automatically via Info.plist's CFBundleIconName. For `swift run`
+        // (no bundle), we get the base-appearance icns only.
+        if let url = Bundle.module.url(forResource: "AerialWall", withExtension: "icns"),
            let image = NSImage(contentsOf: url) {
             NSApp.applicationIconImage = image
         }

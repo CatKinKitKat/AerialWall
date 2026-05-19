@@ -35,17 +35,17 @@ if [ -d "$BIN/AerialWall_AerialWall.bundle" ]; then
     cp -R "$BIN/AerialWall_AerialWall.bundle" "$APP/Contents/Resources/"
 fi
 
-echo "==> actool: compile Assets/Icon.icon → Icon.icns + Assets.car"
+echo "==> actool: compile AerialWall.icon → AerialWall.icns + Assets.car"
 ACTOOL_OUT=$(mktemp -d)
-xcrun actool "$ROOT/Assets/Icon.icon" \
+xcrun actool "$ROOT/AerialWall.icon" \
     --compile "$ACTOOL_OUT" \
     --platform macosx \
     --minimum-deployment-target 26.0 \
-    --app-icon Icon \
+    --app-icon AerialWall \
     --output-format human-readable-text \
     --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null
-cp "$ACTOOL_OUT/Icon.icns" "$APP/Contents/Resources/Icon.icns"
-# Also ship the rendered Assets.car so AppKit can pull a runtime NSImage from it
+cp "$ACTOOL_OUT/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+# Assets.car carries the multi-appearance renditions (light/dark/tinted)
 [ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
 rm -rf "$ACTOOL_OUT"
 
