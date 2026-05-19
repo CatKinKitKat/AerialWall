@@ -8,16 +8,19 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section("Library") {
-                Label("All Wallpapers", systemImage: "photo.on.rectangle.angled")
-                    .tag(SidebarItem.allWallpapers)
-                    .badge(count)
-                Label("Recently Added", systemImage: "clock")
-                    .tag(SidebarItem.recentlyAdded)
+                NavigationLink(value: SidebarItem.allWallpapers) {
+                    Label("All Wallpapers", systemImage: "photo.on.rectangle.angled")
+                        .badge(count)
+                }
+                NavigationLink(value: SidebarItem.recentlyAdded) {
+                    Label("Recently Added", systemImage: "clock")
+                }
             }
             if developerMode {
                 Section("Developer") {
-                    Label("Logs", systemImage: "terminal")
-                        .tag(SidebarItem.logs)
+                    NavigationLink(value: SidebarItem.logs) {
+                        Label("Logs", systemImage: "terminal")
+                    }
                 }
             }
         }

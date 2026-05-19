@@ -15,6 +15,7 @@ struct RootView: View {
             SidebarView(selection: $selection, count: library.wallpapers.count)
         } detail: {
             ContentArea(library: library, selection: selection ?? .allWallpapers)
+                .id(selection)   // force clean recreation when sidebar switches
         }
         .sheet(isPresented: $library.showOnboarding) {
             OnboardingView(isPresented: $library.showOnboarding)
