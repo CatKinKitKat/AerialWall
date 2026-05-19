@@ -4,8 +4,13 @@ import VideoToolbox
 import CoreMedia
 
 public struct TranscodeOptions: Sendable {
-    public var width: Int = 3840
-    public var height: Int = 2160
+    /// V50: target 2880×1620 — VT public API caps HEVC Main10 temporal hierarchy
+    /// at 3 sub-layers above this resolution; below it we get 4 layers, which
+    /// is what `WallpaperAerialsExtension`'s level-3 reader needs on the desktop
+    /// apply path (B19). 2880×1620 is above MacBook Air M1 native (2560×1600)
+    /// and 1440p Retina, so upscale on common Mac displays is imperceptible.
+    public var width: Int = 2880
+    public var height: Int = 1620
     /// Target average bitrate in bits/sec. Apple stock encodes ~12.4 Mbps.
     public var bitrate: Int = 20_000_000
     public init() {}
@@ -168,18 +173,23 @@ public enum TranscodeEngine {
         options: TranscodeOptions,
         srcFps: Double
     ) -> [String: Any] {
-        // V48: 2-layer hierarchical HEVC. WallpaperAerialsExtension's
-        // video-sample-reader filters frames by temporal_id; single-layer
-        // output gets skipped wholesale → gray on unlock (B17). Set
-        // BaseLayerFrameRate to half source fps so VT emits TRAIL_R at
-        // temporal_id 0 plus TSA_N at temporal_id 1.
+        // V50: 4-layer hierarchical HEVC (temporal_id 0..3).
+        // WallpaperAerialsExtension's video-sample-reader uses TWO selection
+        // levels depending on render path (B19):
+        //   - lock/unlock path: "our level is 2" — needs temporal_id ≥ 1
+        //   - desktop apply path: "our level is 3" — needs temporal_id ≥ 3
+        // V48's srcFps/2 only produced 2 layers (max temporal_id=1), satisfying
+        // level 2 but not level 3 → desktop showed black on apply, only worked
+        // post lock/unlock. VT's BaseLayerFrameRate at srcFps/8 produces 4
+        // temporal sub-layers (VT-internal cap — going lower doesn't add more).
+        // Apple stock content has 5 layers (id 0..4); 4 is sufficient.
         let compression: [String: Any] = [
             AVVideoAverageBitRateKey: options.bitrate,
             AVVideoMaxKeyFrameIntervalKey: 60,
             AVVideoExpectedSourceFrameRateKey: Int(srcFps.rounded()),
             AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel as String,
             AVVideoAllowFrameReorderingKey: true,
-            kVTCompressionPropertyKey_BaseLayerFrameRate as String: srcFps / 2.0,
+            kVTCompressionPropertyKey_BaseLayerFrameRate as String: srcFps / 8.0,
         ]
         return [
             AVVideoCodecKey: AVVideoCodecType.hevc,
@@ -233,9 +243,11 @@ public enum TranscodeEngine {
 
         var compositionConfig = AVVideoComposition.Configuration()
         compositionConfig.renderSize = CGSize(width: targetWidth, height: targetHeight)
-        compositionConfig.frameDuration = CMTime(
-            value: 1, timescale: CMTimeScale(max(srcFps.rounded(), 1))
-        )
+        // V50: use 240Hz high-precision timescale rather than 1/srcFps. Coarser
+        // (1/srcFps) frameDuration was capping VT's hierarchy depth at 3 layers
+        // (id 0..2). 1/240 lets VT schedule frame timing freely so the 4-layer
+        // (id 0..3) depth from BaseLayerFrameRate=srcFps/8 can express fully.
+        compositionConfig.frameDuration = CMTime(value: 1, timescale: 240)
         compositionConfig.instructions = [
             AVVideoCompositionInstruction(configuration: instructionConfig)
         ]

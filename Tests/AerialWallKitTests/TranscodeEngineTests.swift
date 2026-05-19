@@ -42,7 +42,9 @@ struct TranscodeEngineTests {
 
         let inputURL = tmpdir.appending(path: "in.mp4")
         let outputURL = tmpdir.appending(path: "out.mov")
-        try Self.synthInput(ffmpeg, dest: inputURL)
+        // 3s of input so the 4-layer hierarchy (V50) has enough frames to surface
+        // temporal_id 3 across multiple GOPs.
+        try Self.synthInput(ffmpeg, dest: inputURL, duration: 3)
 
         try await TranscodeEngine.transcodeAndValidate(input: inputURL, output: outputURL)
         #expect(FileManager.default.fileExists(atPath: outputURL.path))
@@ -71,8 +73,9 @@ struct TranscodeEngineTests {
         #expect((s["codec_name"] as? String) == "hevc")
         #expect((s["codec_tag_string"] as? String) == "hvc1")
         #expect((s["profile"] as? String)?.contains("Main 10") == true)
-        #expect((s["width"] as? Int) == 3840)
-        #expect((s["height"] as? Int) == 2160)
+        // V50: default 2880×1620 (sub-4K) — at 4K VT caps hierarchy at 3 layers (B19)
+        #expect((s["width"] as? Int) == 2880)
+        #expect((s["height"] as? Int) == 1620)
         let pixFmt = s["pix_fmt"] as? String ?? ""
         #expect(pixFmt.contains("10le"), "pix_fmt was \(pixFmt)")
         // start_time = 0 (V44)
@@ -84,7 +87,7 @@ struct TranscodeEngineTests {
         trace.executableURL = ffmpeg
         trace.arguments = [
             "-y", "-nostdin", "-loglevel", "debug",
-            "-i", outputURL.path, "-t", "1", "-c", "copy",
+            "-i", outputURL.path, "-t", "2", "-c", "copy",
             "-bsf:v", "trace_headers", "-f", "null", "-",
         ]
         let traceErr = Pipe()
@@ -96,10 +99,16 @@ struct TranscodeEngineTests {
 
         let traceText = String(data: traceData, encoding: .utf8) ?? ""
         let hasTSA = traceText.contains("TSA_N") || traceText.contains("TSA_R")
-        let hasNonZeroTemporal = traceText.contains("temporal_id: 1")
-            || traceText.contains("temporal_id: 2")
-        #expect(hasTSA, "V48: output must include TSA NAL units")
-        #expect(hasNonZeroTemporal, "V48: output must include frames at temporal_id > 0")
+        // V50: must reach temporal_id 3 to satisfy the wallpaper reader's "level 3"
+        // selection on the desktop-apply path (B19). srcFps/8 BaseLayerFrameRate
+        // produces 4-layer hierarchy.
+        let temporalIDs = (0...4).map { tid -> Int in
+            traceText.components(separatedBy: "temporal_id: \(tid)").count - 1
+        }
+        print("⚙ temporal_id distribution: \(temporalIDs.enumerated().map { "id\($0)=\($1)" }.joined(separator: " "))")
+        let hasTemporalID3 = traceText.contains("temporal_id: 3")
+        #expect(hasTSA, "output must include TSA NAL units")
+        #expect(hasTemporalID3, "V50: output must include frames at temporal_id ≥ 3")
     }
 
     @Test func validateRejectsMissingFile() async {
