@@ -35,17 +35,28 @@ if [ -d "$BIN/AerialWall_AerialWall.bundle" ]; then
     cp -R "$BIN/AerialWall_AerialWall.bundle" "$APP/Contents/Resources/"
 fi
 
-echo "==> copy pre-rendered icon assets"
-# AerialWall.icon needs Xcode 26's actool to compile; CI's Xcode 16 can't.
-# The icns + car are pre-rendered locally via scripts/regen-icon.sh and
-# committed to Sources/AerialWall/Resources/ — copy those into the bundle.
+echo "==> actool: compile AerialWall.icon → AerialWall.icns + Assets.car"
+# Requires Xcode 26+ (.icon format support). If actool fails (e.g. older Xcode),
+# fall back to the pre-rendered files committed in Sources/AerialWall/Resources/.
+ACTOOL_OUT=$(mktemp -d)
 ICON_SRC="$ROOT/Sources/AerialWall/Resources"
-if [ ! -f "$ICON_SRC/AerialWall.icns" ] || [ ! -f "$ICON_SRC/AerialWall.car" ]; then
-    echo "ERROR: pre-rendered icon assets missing. Run scripts/regen-icon.sh locally."
-    exit 1
+if xcrun actool "$ROOT/AerialWall.icon" \
+    --compile "$ACTOOL_OUT" \
+    --platform macosx \
+    --minimum-deployment-target 26.0 \
+    --app-icon AerialWall \
+    --output-format human-readable-text \
+    --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null 2>&1 \
+   && [ -f "$ACTOOL_OUT/AerialWall.icns" ]; then
+    echo "  using freshly-compiled icon (Xcode 26 actool)"
+    cp "$ACTOOL_OUT/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+    [ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
+else
+    echo "  actool failed/old Xcode — using pre-rendered icns/car from repo"
+    [ -f "$ICON_SRC/AerialWall.icns" ] && cp "$ICON_SRC/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+    [ -f "$ICON_SRC/AerialWall.car" ]  && cp "$ICON_SRC/AerialWall.car"  "$APP/Contents/Resources/Assets.car"
 fi
-cp "$ICON_SRC/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
-cp "$ICON_SRC/AerialWall.car"  "$APP/Contents/Resources/Assets.car"
+rm -rf "$ACTOOL_OUT"
 
 echo "==> Info.plist (version=$VERSION build=$BUILD)"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
