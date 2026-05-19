@@ -3,6 +3,7 @@ import SwiftUI
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
     let count: Int
+    @AppStorage("aerialwall.developerMode") private var developerMode = false
 
     var body: some View {
         List(selection: $selection) {
@@ -13,9 +14,11 @@ struct SidebarView: View {
                 Label("Recently Added", systemImage: "clock")
                     .tag(SidebarItem.recentlyAdded)
             }
-            Section("System") {
-                Label("Logs", systemImage: "terminal")
-                    .tag(SidebarItem.logs)
+            if developerMode {
+                Section("Developer") {
+                    Label("Logs", systemImage: "terminal")
+                        .tag(SidebarItem.logs)
+                }
             }
         }
         .listStyle(.sidebar)

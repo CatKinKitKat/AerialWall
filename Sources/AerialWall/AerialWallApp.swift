@@ -38,6 +38,16 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// Toggle for the "Developer" menu — shows/hides the Logs sidebar section.
+/// Kept in its own view so the @AppStorage binding is independent of the App
+/// scope and the menu item gets the SwiftUI checkmark state automatically.
+struct DeveloperModeToggle: View {
+    @AppStorage("aerialwall.developerMode") private var developerMode = false
+    var body: some View {
+        Toggle("Show Logs in Sidebar", isOn: $developerMode)
+    }
+}
+
 @main
 struct AerialWallApp: App {
     @NSApplicationDelegateAdaptor(AerialWallAppDelegate.self) var appDelegate
@@ -81,6 +91,9 @@ struct AerialWallApp: App {
                         name: Notification.Name("AerialWall.showHelp"), object: nil)
                 }
                 .keyboardShortcut("?", modifiers: .command)
+            }
+            CommandMenu("Developer") {
+                DeveloperModeToggle()
             }
         }
 
