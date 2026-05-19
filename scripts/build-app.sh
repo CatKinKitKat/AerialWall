@@ -35,19 +35,17 @@ if [ -d "$BIN/AerialWall_AerialWall.bundle" ]; then
     cp -R "$BIN/AerialWall_AerialWall.bundle" "$APP/Contents/Resources/"
 fi
 
-echo "==> actool: compile AerialWall.icon → AerialWall.icns + Assets.car"
-ACTOOL_OUT=$(mktemp -d)
-xcrun actool "$ROOT/AerialWall.icon" \
-    --compile "$ACTOOL_OUT" \
-    --platform macosx \
-    --minimum-deployment-target 26.0 \
-    --app-icon AerialWall \
-    --output-format human-readable-text \
-    --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null
-cp "$ACTOOL_OUT/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
-# Assets.car carries the multi-appearance renditions (light/dark/tinted)
-[ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
-rm -rf "$ACTOOL_OUT"
+echo "==> copy pre-rendered icon assets"
+# AerialWall.icon needs Xcode 26's actool to compile; CI's Xcode 16 can't.
+# The icns + car are pre-rendered locally via scripts/regen-icon.sh and
+# committed to Sources/AerialWall/Resources/ — copy those into the bundle.
+ICON_SRC="$ROOT/Sources/AerialWall/Resources"
+if [ ! -f "$ICON_SRC/AerialWall.icns" ] || [ ! -f "$ICON_SRC/AerialWall.car" ]; then
+    echo "ERROR: pre-rendered icon assets missing. Run scripts/regen-icon.sh locally."
+    exit 1
+fi
+cp "$ICON_SRC/AerialWall.icns" "$APP/Contents/Resources/AerialWall.icns"
+cp "$ICON_SRC/AerialWall.car"  "$APP/Contents/Resources/Assets.car"
 
 echo "==> Info.plist (version=$VERSION build=$BUILD)"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
