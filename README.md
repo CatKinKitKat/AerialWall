@@ -9,6 +9,13 @@
   [![Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/CatKinKitKat/AerialWall/releases)
   [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-brightgreen)](https://www.apple.com/macos/)
   [![AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+
+  <a href="https://ko-fi.com/catkinkitkat">
+    <img src="https://img.shields.io/badge/Ko--fi-Support-FFDD00?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Ko-fi" />
+  </a>
+  <a href="https://www.buymeacoffee.com/catkinkitkat">
+    <img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee" />
+  </a>
 </div>
 
 ---
