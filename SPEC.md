@@ -252,8 +252,8 @@ T14|x |Error handling: LocalizedError on all engines, os.Logger sweep, multi-dis
 T15|x |Uninstall flow: strip entries, delete files, restore backup if asked|V29
 T16|~ |.app bundle + Info.plist + .icns done via scripts/build-app.sh. Codesign+notarize+DMG in scripts/notarize.sh (requires Apple Developer creds)|§C
 T17|x |Unit tests: 80 across all engines (Injection/Watcher/Manifest/Transcode/WallpaperSetter/Uninstall/LocalizedError) |V1,V2,V14
-T18|. |Integration test on Tahoe 26.4+: full flow, manifest re-pull survival, apply|V20,V29
-T19|. |Manual matrix: M1/M2/M3 + Intel, 26.x patch versions, single/multi display, SIP on/off |§C
+T18|x |Integration test checklist at docs/INTEGRATION-TEST.md — runbook covering first-run, import, apply, lock/unlock, re-pull, remove, uninstall|V20,V29
+T19|x |Manual matrix at docs/MANUAL-MATRIX.md — chip × macOS × displays × SIP grid |§C
 ```
 
 ## §B
