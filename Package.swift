@@ -11,7 +11,11 @@ let package = Package(
     ],
     targets: [
         .target(name: "AerialWallKit"),
-        .executableTarget(name: "AerialWall", dependencies: ["AerialWallKit"]),
+        .executableTarget(
+            name: "AerialWall",
+            dependencies: ["AerialWallKit"],
+            resources: [.process("Resources")]
+        ),
         .executableTarget(name: "AerialWallAgent", dependencies: ["AerialWallKit"]),
         .testTarget(name: "AerialWallKitTests", dependencies: ["AerialWallKit"]),
     ]
