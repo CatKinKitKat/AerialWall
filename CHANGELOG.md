@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.0-beta.4] — 2026-05-19
+
+### Fixed
+- **Logs view no longer freezes the app.** `OSLogStore.getEntries` is
+  synchronous and slow on large windows — moved enumeration to a
+  `Task.detached(.userInitiated)` so the main actor stays responsive.
+  Result also capped at 500 entries with an early `break` so the table
+  never gets a million-row payload. Default range shortened to 15 min;
+  the 24-hour option was removed.
+- "Reading logs…" progress indicator shown while the enumeration is in
+  flight.
+
 ## [0.1.0-beta.3] — 2026-05-19
 
 ### Added
