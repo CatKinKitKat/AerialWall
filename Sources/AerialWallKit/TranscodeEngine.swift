@@ -203,7 +203,7 @@ public enum TranscodeEngine {
         duration: CMTime,
         targetWidth: Int,
         targetHeight: Int
-    ) -> AVVideoComposition {
+    ) -> AVMutableVideoComposition {
         // Source dimensions after the track's preferred transform (handles
         // rotated sources like portrait phone video).
         let orientedSize = naturalSize.applying(preferredTransform)
@@ -221,28 +221,23 @@ public enum TranscodeEngine {
             .concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
 
-        // macOS 26 API: build via Configuration value types (V48 migration).
-        var layerConfig = AVVideoCompositionLayerInstruction.Configuration(trackID: videoTrack.trackID)
-        layerConfig.setTransform(transform, at: .zero)
+        // Use AVMutableVideoComposition (deprecated macOS 26 but available on
+        // all SDK versions including the Xcode 16 / macOS 15 CI runner).
+        // Migration to AVVideoComposition.Configuration deferred until GitHub
+        // provides macOS 26 hosted runners.
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+        layerInstruction.setTransform(transform, at: .zero)
 
-        var instructionConfig = AVVideoCompositionInstruction.Configuration()
-        instructionConfig.timeRange = CMTimeRange(start: .zero, duration: duration)
-        instructionConfig.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        instructionConfig.layerInstructions = [
-            AVVideoCompositionLayerInstruction(configuration: layerConfig)
-        ]
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        instruction.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        instruction.layerInstructions = [layerInstruction]
 
-        var compositionConfig = AVVideoComposition.Configuration()
-        compositionConfig.renderSize = CGSize(width: targetWidth, height: targetHeight)
-        // V50: use 240Hz high-precision timescale rather than 1/srcFps. Coarser
-        // (1/srcFps) frameDuration was capping VT's hierarchy depth at 3 layers
-        // (id 0..2). 1/240 lets VT schedule frame timing freely so the 4-layer
-        // (id 0..3) depth from BaseLayerFrameRate=srcFps/8 can express fully.
-        compositionConfig.frameDuration = CMTime(value: 1, timescale: 240)
-        compositionConfig.instructions = [
-            AVVideoCompositionInstruction(configuration: instructionConfig)
-        ]
-        return AVVideoComposition(configuration: compositionConfig)
+        let composition = AVMutableVideoComposition()
+        composition.renderSize = CGSize(width: targetWidth, height: targetHeight)
+        composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(max(srcFps.rounded(), 1)))
+        composition.instructions = [instruction]
+        return composition
     }
 
     private static func pumpSamples(
