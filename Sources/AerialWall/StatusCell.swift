@@ -18,8 +18,10 @@ struct StatusCell: View {
             Label("Error", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red)
                 .help(err)
+        } else if wallpaper.isApplied {
+            Label("Applied", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
         } else if wallpaper.isInjected {
-            Text("● Ready").foregroundStyle(.green)
+            Text("● Ready").foregroundStyle(.secondary)
         } else {
             Text("Pending").foregroundStyle(.secondary)
         }

@@ -243,7 +243,7 @@ T9 |x |PersistenceWatcher: FSEvents on entries.json + manifest.tar         |V19,
 T10|x |LaunchAgent: install/uninstall, plist @ ~/Library/LaunchAgents/     |§I
 T11|x |Backup mgr: snapshot entries.json before inject, retain 3           |V30
 T12|x |SwiftUI UI: library grid, import sheet, apply, status indicator     |§I,GUI
-T13|. |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
+T13|x |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
 T14|. |Error handling: missing entries.json, schema mismatch, restart fail, Apple manifest re-pull drift, multi-display |V20,V21
 T15|. |Uninstall flow: strip entries, delete files, restore backup if asked|V29
 T16|. |Notarization + DMG packaging                                        |§C

@@ -37,6 +37,10 @@ struct LibraryView: View {
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
                 .contextMenu(forSelectionType: WallpaperViewModel.ID.self) { ids in
                     if let wp = wallpaper(for: ids) {
+                        Button("Apply as Wallpaper") {
+                            Task { await library.apply(wp) }
+                        }
+                        Divider()
                         Button("Rename…") { library.renameTarget = wp }
                         Button("Show in Finder") { reveal(wp) }
                         Button("Copy UUID") {
@@ -45,6 +49,10 @@ struct LibraryView: View {
                         }
                         Divider()
                         Button("Remove", role: .destructive) { library.removeTarget = wp }
+                    }
+                } primaryAction: { ids in
+                    if let wp = wallpaper(for: ids) {
+                        Task { await library.apply(wp) }
                     }
                 }
             }

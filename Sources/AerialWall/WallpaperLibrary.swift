@@ -17,6 +17,7 @@ final class WallpaperViewModel: Identifiable {
     var videoPath: String
     var thumbPath: String
     var isInjected: Bool
+    var isApplied: Bool = false
 
     var encodingProgress: Double? = nil
     var errorMessage: String? = nil
@@ -140,6 +141,22 @@ final class WallpaperLibrary {
         }
 
         try? FileManager.default.removeItem(at: draft.previewThumbnailPath)
+    }
+
+    // MARK: - apply
+
+    func apply(_ vm: WallpaperViewModel) async {
+        guard vm.isInjected else {
+            importError = "\"\(vm.name)\" isn't injected yet — wait for the import to finish."
+            return
+        }
+        do {
+            try WallpaperSetter.apply(assetID: vm.id)
+            // Mark all others not-applied, mark this one applied.
+            for w in wallpapers { w.isApplied = (w.id == vm.id) }
+        } catch {
+            importError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
     }
 
     // MARK: - rename
