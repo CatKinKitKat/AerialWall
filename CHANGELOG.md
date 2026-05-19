@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.0] — 2026-05-19
+
+First stable release. Same code as `0.1.0-beta.5`, promoted after the
+beta testing window. See the beta entries below for the full list of
+features delivered between `0.1.0-beta.1` and `0.1.0-beta.5`.
+
+Distribution: `brew tap CatKinKitKat/aerialwall && brew install --cask aerialwall`
+
 ## [0.1.0-beta.5] — 2026-05-19
 
 ### Fixed
