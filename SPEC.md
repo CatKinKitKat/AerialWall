@@ -250,7 +250,7 @@ T12|x |SwiftUI UI: library grid, import sheet, apply, status indicator     |§I,
 T13|x |WallpaperSetter: NSWorkspace + Index.plist fallback for apply       |V25
 T14|x |Error handling: LocalizedError on all engines, os.Logger sweep, multi-display Index.plist|V20,V21,V51,V52,V53
 T15|x |Uninstall flow: strip entries, delete files, restore backup if asked|V29
-T16|~ |.app bundle + Info.plist + .icns done via scripts/build-app.sh. Codesign+notarize+DMG in scripts/notarize.sh (requires Apple Developer creds)|§C
+T16|x |.app bundle via scripts/build-app.sh + Homebrew Cask in Casks/aerialwall.rb. Skip notarization (US$99/yr Apple tax). Cask postflight strips com.apple.quarantine xattr — no "unidentified developer" dialog. Release workflow auto-publishes the cask to a CatKinKitKat/homebrew-aerialwall tap repo.|§C
 T17|x |Unit tests: 80 across all engines (Injection/Watcher/Manifest/Transcode/WallpaperSetter/Uninstall/LocalizedError) |V1,V2,V14
 T18|x |Integration test checklist at docs/INTEGRATION-TEST.md — runbook covering first-run, import, apply, lock/unlock, re-pull, remove, uninstall|V20,V29
 T19|x |Manual matrix at docs/MANUAL-MATRIX.md — chip × macOS × displays × SIP grid |§C

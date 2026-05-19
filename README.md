@@ -40,15 +40,25 @@ AerialWall transcodes your video into the exact HEVC format macOS expects, injec
 
 ## Installation
 
-**From the GitHub release** (recommended) — download the `AerialWall-*.zip` from
-the [releases page](https://github.com/CatKinKitKat/AerialWall/releases), unzip,
-and drag `AerialWall.app` to `/Applications`.
+### Homebrew (recommended)
 
-> The first time you open it macOS Gatekeeper may flag it as "from an
-> unidentified developer" until a signed/notarized release lands. Right-click
-> → Open to bypass once.
+```bash
+brew tap CatKinKitKat/aerialwall
+brew install --cask aerialwall
+```
 
-**From source:**
+The cask strips Gatekeeper's quarantine attribute after install, so the app
+opens without the "unidentified developer" warning. AerialWall is **not**
+notarized — paying Apple US$99/yr just to skip one dialog isn't on the table.
+
+### Manual
+
+Download `AerialWall-*.zip` from the
+[releases page](https://github.com/CatKinKitKat/AerialWall/releases),
+unzip, drag `AerialWall.app` to `/Applications`, then **right-click → Open**
+once to dismiss Gatekeeper. After that it launches normally.
+
+### From source
 
 ```bash
 git clone https://github.com/CatKinKitKat/AerialWall

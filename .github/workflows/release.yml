@@ -25,34 +25,31 @@ jobs:
         id: meta
         run: |
           TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
           if [[ "$TAG" == *"-beta."* || "$TAG" == *"-alpha."* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build .app bundle
-        run: |
-          # T16: full macOS .app bundle with icon, Info.plist, resources.
-          # Codesigning + notarization + DMG require Apple Developer creds —
-          # run scripts/notarize.sh locally and upload the DMG manually.
-          VERSION="${{ steps.meta.outputs.tag }}"
-          VERSION="${VERSION#v}"
-          ./scripts/build-app.sh "$VERSION" "${{ github.run_number }}"
+        run: ./scripts/build-app.sh "${{ steps.meta.outputs.version }}" "${{ github.run_number }}"
 
       - name: Package artifacts
+        id: pkg
         run: |
           mkdir -p dist
-          # ZIP the .app bundle (preserves bundle structure)
-          ditto -c -k --keepParent build/AerialWall.app \
-            dist/AerialWall-${{ steps.meta.outputs.tag }}-macos-arm64.zip
-          # Also ship raw executables for power users
-          cp .build/release/AerialWall       dist/AerialWall
-          cp .build/release/AerialWallAgent  dist/AerialWallAgent
+          ZIP="dist/AerialWall-${{ steps.meta.outputs.tag }}-macos-arm64.zip"
+          ditto -c -k --keepParent build/AerialWall.app "$ZIP"
+          cp .build/release/AerialWall      dist/AerialWall
+          cp .build/release/AerialWallAgent dist/AerialWallAgent
           chmod +x dist/AerialWall dist/AerialWallAgent
           tar -czf dist/AerialWall-${{ steps.meta.outputs.tag }}-cli-macos-arm64.tar.gz \
             -C dist AerialWall AerialWallAgent
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$ZIP" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -62,3 +59,31 @@ jobs:
           files: |
             dist/*.zip
             dist/*.tar.gz
+
+      # ── Homebrew cask publish ───────────────────────────────────────────
+      # Updates the cask in the main repo (Casks/aerialwall.rb) so the
+      # `brew tap CatKinKitKat/aerialwall` users get the new version on
+      # their next `brew update`. Requires the tap repo to be set up:
+      #   gh repo create CatKinKitKat/homebrew-aerialwall --public
+      # and the GitHub Actions bot to have write access to it via the
+      # HOMEBREW_TAP_TOKEN secret (a PAT with `repo` scope).
+      # ───────────────────────────────────────────────────────────────────
+      - name: Update Homebrew cask
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/CatKinKitKat/homebrew-aerialwall.git" tap
+          mkdir -p tap/Casks
+          # Render the cask file with the new version + sha256
+          sed -e 's|version "[^"]*"|version "${{ steps.meta.outputs.version }}"|' \
+              -e 's|sha256 "[^"]*"|sha256 "${{ steps.pkg.outputs.sha256 }}"|' \
+              Casks/aerialwall.rb > tap/Casks/aerialwall.rb
+          cd tap
+          git config user.email "actions@github.com"
+          git config user.name  "github-actions[bot]"
+          git add Casks/aerialwall.rb
+          git diff --cached --quiet || \
+            git commit -m "aerialwall ${{ steps.meta.outputs.version }}"
+          git push
