@@ -9,9 +9,10 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        // SPM executables have no .app bundle, so macOS can't pick up
-        // the xcassets icon automatically. Load it from the module bundle.
-        if let url = Bundle.module.url(forResource: "AppIconImage", withExtension: "png"),
+        // SPM executables have no .app bundle, so macOS can't pick up the
+        // app icon automatically. Load the actool-rendered .icns from the
+        // module bundle (generated from Assets/Icon.icon via scripts/regen-icon.sh).
+        if let url = Bundle.module.url(forResource: "Icon", withExtension: "icns"),
            let image = NSImage(contentsOf: url) {
             NSApp.applicationIconImage = image
         }

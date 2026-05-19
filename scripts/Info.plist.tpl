@@ -9,9 +9,9 @@
   <key>CFBundleExecutable</key>
   <string>AerialWall</string>
   <key>CFBundleIconFile</key>
-  <string>AppIcon</string>
+  <string>Icon</string>
   <key>CFBundleIconName</key>
-  <string>AppIcon</string>
+  <string>Icon</string>
   <key>CFBundleIdentifier</key>
   <string>com.aerialwall.app</string>
   <key>CFBundleInfoDictionaryVersion</key>

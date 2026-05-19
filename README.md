@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Assets/icon-glass.png" alt="AerialWall" width="180" />
+  <img src="Assets/glass-logo.png" alt="AerialWall" width="180" />
 
   # AerialWall
 

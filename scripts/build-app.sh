@@ -4,8 +4,8 @@
 #   Usage:  scripts/build-app.sh [version] [build]
 #   Output: build/AerialWall.app
 #
-# This script does NOT codesign or notarize — those require an Apple Developer
-# certificate and Apple ID. See scripts/notarize.sh for that pass.
+# Icon source: Assets/Icon.icon — Apple's Icon Composer format (macOS 26+).
+# Compiled to Icon.icns by `actool`, exactly as Xcode 26 would.
 
 set -euo pipefail
 
@@ -26,7 +26,7 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 
 echo "==> copy executable"
-cp "$BIN/AerialWall"      "$APP/Contents/MacOS/AerialWall"
+cp "$BIN/AerialWall" "$APP/Contents/MacOS/AerialWall"
 [ -f "$BIN/AerialWallAgent" ] && cp "$BIN/AerialWallAgent" "$APP/Contents/MacOS/AerialWallAgent"
 
 # SPM bundles resources as AerialWall_AerialWall.bundle next to the executable
@@ -35,33 +35,28 @@ if [ -d "$BIN/AerialWall_AerialWall.bundle" ]; then
     cp -R "$BIN/AerialWall_AerialWall.bundle" "$APP/Contents/Resources/"
 fi
 
-echo "==> compile AppIcon.icns from xcassets"
-ICONSET=$(mktemp -d)/AppIcon.iconset
-mkdir -p "$ICONSET"
-ICONS_SRC="Sources/AerialWall/Resources/Assets.xcassets/AppIcon.appiconset"
-# iconutil naming convention: icon_<size>x<size>[@2x].png
-cp "$ICONS_SRC/icon_16.png"    "$ICONSET/icon_16x16.png"
-cp "$ICONS_SRC/icon_16@2.png"  "$ICONSET/icon_16x16@2x.png"
-cp "$ICONS_SRC/icon_32.png"    "$ICONSET/icon_32x32.png"
-cp "$ICONS_SRC/icon_32@2.png"  "$ICONSET/icon_32x32@2x.png"
-cp "$ICONS_SRC/icon_128.png"   "$ICONSET/icon_128x128.png"
-cp "$ICONS_SRC/icon_128@2.png" "$ICONSET/icon_128x128@2x.png"
-cp "$ICONS_SRC/icon_256.png"   "$ICONSET/icon_256x256.png"
-cp "$ICONS_SRC/icon_256@2.png" "$ICONSET/icon_256x256@2x.png"
-cp "$ICONS_SRC/icon_512.png"   "$ICONSET/icon_512x512.png"
-cp "$ICONS_SRC/icon_512@2.png" "$ICONSET/icon_512x512@2x.png"
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+echo "==> actool: compile Assets/Icon.icon → Icon.icns + Assets.car"
+ACTOOL_OUT=$(mktemp -d)
+xcrun actool "$ROOT/Assets/Icon.icon" \
+    --compile "$ACTOOL_OUT" \
+    --platform macosx \
+    --minimum-deployment-target 26.0 \
+    --app-icon Icon \
+    --output-format human-readable-text \
+    --output-partial-info-plist "$ACTOOL_OUT/PartialInfo.plist" >/dev/null
+cp "$ACTOOL_OUT/Icon.icns" "$APP/Contents/Resources/Icon.icns"
+# Also ship the rendered Assets.car so AppKit can pull a runtime NSImage from it
+[ -f "$ACTOOL_OUT/Assets.car" ] && cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/"
+rm -rf "$ACTOOL_OUT"
 
 echo "==> Info.plist (version=$VERSION build=$BUILD)"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
     scripts/Info.plist.tpl > "$APP/Contents/Info.plist"
-
-echo "==> Info.plist.binary form (Finder prefers binary plist)"
 plutil -convert binary1 "$APP/Contents/Info.plist"
 
-echo "==> verify bundle"
+echo "==> verify"
 plutil -lint "$APP/Contents/Info.plist"
-codesign -dvv "$APP" 2>&1 | head -5 || echo "  (unsigned — run scripts/notarize.sh to sign+notarize)"
+codesign -dvv "$APP" 2>&1 | head -5 || true
 
 echo
 echo "Done: $APP"
