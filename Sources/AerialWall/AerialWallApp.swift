@@ -43,6 +43,7 @@ struct AerialWallApp: App {
     @NSApplicationDelegateAdaptor(AerialWallAppDelegate.self) var appDelegate
     @State private var library = WallpaperLibrary()
     @State private var showAbout = false
+    @State private var showHelp = false
 
     var body: some Scene {
         WindowGroup("AerialWall") {
@@ -50,9 +51,14 @@ struct AerialWallApp: App {
                 .frame(minWidth: 760, minHeight: 520)
                 .task { await library.load() }
                 .sheet(isPresented: $showAbout) { AboutView() }
+                .sheet(isPresented: $showHelp) { HelpView() }
                 .onReceive(NotificationCenter.default.publisher(
                     for: Notification.Name("AerialWall.showAbout"))) { _ in
                     showAbout = true
+                }
+                .onReceive(NotificationCenter.default.publisher(
+                    for: Notification.Name("AerialWall.showHelp"))) { _ in
+                    showHelp = true
                 }
         }
         .defaultSize(width: 960, height: 620)
@@ -63,13 +69,18 @@ struct AerialWallApp: App {
                 }
                 .keyboardShortcut("o", modifiers: .command)
             }
-            // Replace the default "About AerialWall" menu item so it
-            // opens our custom modal instead of the system about-window.
             CommandGroup(replacing: .appInfo) {
                 Button("About AerialWall") {
                     NotificationCenter.default.post(
                         name: Notification.Name("AerialWall.showAbout"), object: nil)
                 }
+            }
+            CommandGroup(replacing: .help) {
+                Button("AerialWall Help") {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("AerialWall.showHelp"), object: nil)
+                }
+                .keyboardShortcut("?", modifiers: .command)
             }
         }
 
