@@ -20,7 +20,7 @@ final class AerialWallAppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    @objc private func refreshAppIcon() {
+    @MainActor @objc private func refreshAppIcon() {
         // In a proper .app bundle, CFBundleIconName + Assets.car drives the
         // dock icon and macOS handles light/dark/tinted automatically. Force-
         // setting applicationIconImage = NSImage(contentsOf: icns) would lock
