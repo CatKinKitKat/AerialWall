@@ -6,9 +6,9 @@
   **Native video wallpapers for macOS Tahoe.**  
   Import any video. It shows up in System Settings — just like Apple's own aerials.
 
-  [![Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/CatKinKitKat/AerialWall/releases)
-  [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-brightgreen)](https://www.apple.com/macos/)
-  [![AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+  [![Release](https://img.shields.io/github/v/release/CatKinKitKat/AerialWall?include_prereleases&sort=semver)](https://github.com/CatKinKitKat/AerialWall/releases)
+  [![macOS](https://img.shields.io/badge/macOS-26.4%2B-brightgreen?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+  [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
   <a href="https://ko-fi.com/catkinkitkat">
     <img src="https://img.shields.io/badge/Ko--fi-Support-FFDD00?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Ko-fi" />
