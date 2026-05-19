@@ -202,7 +202,17 @@ public enum TranscodeEngine {
         duration: CMTime,
         targetWidth: Int,
         targetHeight: Int
-    ) -> AVVideoComposition {
+    ) -> AVMutableVideoComposition {
+        let composition = AVMutableVideoComposition()
+        composition.renderSize = CGSize(width: targetWidth, height: targetHeight)
+        composition.frameDuration = CMTime(
+            value: 1, timescale: CMTimeScale(max(srcFps.rounded(), 1))
+        )
+
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        instruction.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+
         // Source dimensions after the track's preferred transform (handles
         // rotated sources like portrait phone video).
         let orientedSize = naturalSize.applying(preferredTransform)
@@ -220,26 +230,11 @@ public enum TranscodeEngine {
             .concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
 
-        // macOS 26 API: build via Configuration value types (V48 migration).
-        var layerConfig = AVVideoCompositionLayerInstruction.Configuration(trackID: videoTrack.trackID)
-        layerConfig.setTransform(transform, at: .zero)
-
-        var instructionConfig = AVVideoCompositionInstruction.Configuration()
-        instructionConfig.timeRange = CMTimeRange(start: .zero, duration: duration)
-        instructionConfig.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        instructionConfig.layerInstructions = [
-            AVVideoCompositionLayerInstruction(configuration: layerConfig)
-        ]
-
-        var compositionConfig = AVVideoComposition.Configuration()
-        compositionConfig.renderSize = CGSize(width: targetWidth, height: targetHeight)
-        compositionConfig.frameDuration = CMTime(
-            value: 1, timescale: CMTimeScale(max(srcFps.rounded(), 1))
-        )
-        compositionConfig.instructions = [
-            AVVideoCompositionInstruction(configuration: instructionConfig)
-        ]
-        return AVVideoComposition(configuration: compositionConfig)
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+        layerInstruction.setTransform(transform, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        composition.instructions = [instruction]
+        return composition
     }
 
     private static func pumpSamples(
