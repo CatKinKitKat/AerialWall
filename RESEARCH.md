@@ -24,7 +24,7 @@ The privilege change is significant: everything is now in the user's home direct
 
 ### entries.json structure
 
-Asset entries require 12 fields including `id`, `localizedNameKey` (displayed literally when not found in `TVIdleScreenStrings.bundle`), `categories`, `subcategories`, `url-4K-SDR-240FPS`, and `previewImage`. URL fields can point to Apple's CDN; the system auto-discovers local files at `videos/<UUID>.mov` and `thumbnails/<UUID>.png` by UUID convention regardless of the URL value.
+Asset entries require 12 fields including `id`, `localizedNameKey` (displayed literally when not found in `TVIdleScreenStrings.bundle`), `categories`, `subcategories`, `url-4K-SDR-240FPS`, and `previewImage`. URL fields can point to Apple's CDN. The system auto-discovers local files at `videos/<UUID>.mov` and `thumbnails/<UUID>.png` by UUID convention regardless of the URL value.
 
 ---
 
@@ -34,11 +34,11 @@ Custom wallpapers would play correctly on the lock screen but revert to a gray b
 
 ### Wrong hypotheses tested
 
-- **file:// vs https:// URLs in entries.json** — The URL scheme in `url-4K-SDR-240FPS` and `previewImage` was initially thought to matter. Tests showed it does not affect behaviour; the system always uses the local UUID-matched file.
-- **Custom category interference** — A custom "AerialWall" top-level category was suspected. Test B (Apple bytes under our category) passed cleanly, ruling this out.
-- **B-frames and HEVC level** — Forcing B-frames, adjusting HEVC levels, and matching `has_b_frames=4` had no effect.
-- **Frame rate matching (240fps)** — Re-encoding to 240fps made transcodes 5x slower with no improvement.
-- **start_time offset (V44)** — VideoToolbox adds a 1-frame PTS offset (~33ms at 30fps). Forcing `start_time=0` via `setpts=PTS-STARTPTS` was necessary but not sufficient on its own.
+- **file:// vs https:// URLs in entries.json**: The URL scheme in `url-4K-SDR-240FPS` and `previewImage` was initially thought to matter. Tests showed it does not affect behaviour. The system always uses the local UUID-matched file.
+- **Custom category interference**: A custom "AerialWall" top-level category was suspected. Test B (Apple bytes under our category) passed cleanly, ruling this out.
+- **B-frames and HEVC level**: Forcing B-frames, adjusting HEVC levels, and matching `has_b_frames=4` had no effect.
+- **Frame rate matching (240fps)**: Re-encoding to 240fps made transcodes 5x slower with no improvement.
+- **start_time offset (V44)**: VideoToolbox adds a 1-frame PTS offset (~33ms at 30fps). Forcing `start_time=0` via `setpts=PTS-STARTPTS` was necessary but not sufficient on its own.
 
 ### The actual cause: HEVC temporal sub-layers (V48)
 
@@ -75,7 +75,7 @@ To eliminate content-specific variables, four variants were generated from Apple
 | C | 2880x1620, 4-layer | Pass | Pass | Pass |
 | D | 2880x1620, single-layer | Pass | Pass | Gray |
 
-Result: temporal sub-layers are required; 2 layers is sufficient; resolution does not matter.
+Result: temporal sub-layers are required. 2 layers is sufficient. Resolution does not matter.
 
 ---
 
@@ -105,7 +105,7 @@ AVURLAsset (input)
 
 ### Subprocess hazards (ffmpeg is still used in tests)
 
-- **Pipe buffer deadlock (B8):** The kernel pipe buffer is ~64KB. ffmpeg writes verbose stderr; if no consumer drains it, ffmpeg blocks on `write(2)` indefinitely. `FileHandle.readabilityHandler` must drain stderr continuously.
+- **Pipe buffer deadlock (B8):** The kernel pipe buffer is ~64KB. ffmpeg writes verbose stderr. If no consumer drains it, ffmpeg blocks on `write(2)` indefinitely. `FileHandle.readabilityHandler` must drain stderr continuously.
 - **TTY hang (B9):** Without `-nostdin`, ffmpeg calls `tcsetattr` on stdin. As a background process this hangs. Always pass `-nostdin`.
 
 ---
@@ -124,7 +124,7 @@ On removal: when the last asset belonging to a custom category is removed, the c
 
 ### Schema version gate
 
-The current manifest format is `version=1`. `InjectionEngine` gates all mutations on this version; if Apple ships a new schema, injection is refused cleanly rather than corrupting an unknown format.
+The current manifest format is `version=1`. `InjectionEngine` gates all mutations on this version. If Apple ships a new schema, injection is refused cleanly rather than corrupting an unknown format.
 
 ---
 

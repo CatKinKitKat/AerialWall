@@ -4,7 +4,7 @@
   # AerialWall
 
   **Native video wallpapers for macOS Tahoe.**  
-  Import any video. It shows up in System Settings — just like Apple's own aerials.
+  Import any video. It shows up in System Settings: just like Apple's own aerials.
 
   [![Release](https://img.shields.io/github/v/release/CatKinKitKat/AerialWall?include_prereleases&sort=semver)](https://github.com/CatKinKitKat/AerialWall/releases)
   [![macOS](https://img.shields.io/badge/macOS-26.4%2B-brightgreen?logo=apple&logoColor=white)](https://www.apple.com/macos/)
@@ -22,21 +22,21 @@
 
 ## What it does
 
-AerialWall transcodes your video into the exact HEVC format macOS expects, injects it into the wallpaper manifest, and adds it as a native **AerialWall** category in System Settings → Wallpaper. No overlays. No fake windows. No custom renderers — your wallpaper plays through the same `WallpaperAerialsExtension` that Apple's own aerials use.
+AerialWall transcodes your video into the exact HEVC format macOS expects, injects it into the wallpaper manifest, and adds it as a native **AerialWall** category in System Settings → Wallpaper. No overlays. No fake windows. No custom renderers: your wallpaper plays through the same `WallpaperAerialsExtension` that Apple's own aerials use.
 
 ## Features
 
-- **Native integration** — appears in System Settings → Wallpaper alongside Apple's landscapes
-- **Lock screen + desktop** — works on both, survives lock/unlock cycle
-- **Tahoe-native** — built around macOS 26's JSON manifest architecture (`entries.json`)
-- **Hardware-accelerated** — VideoToolbox HEVC with 2-layer temporal hierarchy (required by `WallpaperAerialsExtension`)
-- **Non-destructive** — full backup of `entries.json` before every change, atomic writes throughout
-- **Open source** — AGPL-3.0, no telemetry, no subscription
+- **Native integration**: appears in System Settings → Wallpaper alongside Apple's landscapes
+- **Lock screen + desktop**: works on both, survives lock/unlock cycle
+- **Tahoe-native**: built around macOS 26's JSON manifest architecture (`entries.json`)
+- **Hardware-accelerated**: VideoToolbox HEVC with 2-layer temporal hierarchy (required by `WallpaperAerialsExtension`)
+- **Non-destructive**: full backup of `entries.json` before every change, atomic writes throughout
+- **Open source**: AGPL-3.0, no telemetry, no subscription
 
 ## Requirements
 
 - **macOS 26 (Tahoe) ≥ 26.4**
-- **Non-sandboxed** — needs access to `~/Library/Application Support/com.apple.wallpaper`
+- **Non-sandboxed**: needs access to `~/Library/Application Support/com.apple.wallpaper`
 
 ## Installation
 
@@ -49,7 +49,7 @@ brew install --cask aerialwall
 
 The cask strips Gatekeeper's quarantine attribute after install, so the app
 opens without the "unidentified developer" warning. AerialWall is **not**
-notarized — paying Apple US$99/yr just to skip one dialog isn't on the table.
+notarized: paying Apple US$99/yr just to skip one dialog isn't on the table.
 
 ### Manual
 

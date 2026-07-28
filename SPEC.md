@@ -1,6 +1,6 @@
-# SPEC — AerialWall
+# SPEC: AerialWall
 
-> v2 — Tahoe-only after live probe on macOS 26.4.1. v1 (macOS-15 SQLite model) superseded; drift recorded in §B.
+> v2: Tahoe-only after live probe on macOS 26.4.1. v1 (macOS-15 SQLite model) superseded. Drift recorded in §B.
 
 ## §G
 
@@ -16,9 +16,9 @@ FOSS macOS app, Tahoe-only. User videos → transcode HEVC Main10 → drop in `~
 - sandbox: false (writes `~/Library/...`)
 - Hardened Runtime: on
 - notarized: ! (Gatekeeper)
-- SIP disable: ⊥ required — works with SIP on (verified)
+- SIP disable: ⊥ required: works with SIP on (verified)
 - privilege: user-domain only, ⊥ root, ⊥ SMAppService, ⊥ XPC privileged helper
-- assumes `entries.json.version == 1` & `localizationVersion == "22L-1"`; probe @ runtime
+- assumes `entries.json.version == 1` & `localizationVersion == "22L-1"`. Probe @ runtime
 
 ## §I
 
@@ -69,7 +69,7 @@ PID lookup: `launchctl list | awk '$3=="com.apple.wallpaper.agent" {print $1}'`.
 }
 ```
 
-**asset entry** — required ∀ 156/156:
+**asset entry**: required ∀ 156/156:
 ```jsonc
 {
   "id":                  "<UUID uppercase>",
@@ -87,7 +87,7 @@ PID lookup: `launchctl list | awk '$3=="com.apple.wallpaper.agent" {print $1}'`.
 }
 ```
 
-optional asset field: `"group": "<str>"` (44/156 stock — grouping animated lock+desktop pairs).
+optional asset field: `"group": "<str>"` (44/156 stock: grouping animated lock+desktop pairs).
 
 **category entry**:
 ```jsonc
@@ -126,7 +126,7 @@ stock category UUIDs (do NOT modify):
 -f mov
 ```
 
-container: `major_brand=qt`. Apple stock 299s clip — long-form, NOT seamless-loop. Skip loop encoding.
+container: `major_brand=qt`. Apple stock 299s clip: long-form, NOT seamless-loop. Skip loop encoding.
 
 ### AerialWall manifest (`~/Library/Application Support/AerialWall/manifest.json`)
 
@@ -157,7 +157,7 @@ AerialWallAgent     → slim user-domain LaunchAgent (PersistenceWatcher, no UI,
 AerialWallKit       → shared framework (models, Constants, JSON codec)
 ```
 
-⊥ AerialWallHelper target — no privileged operation needed.
+⊥ AerialWallHelper target: no privileged operation needed.
 
 ### GUI reference
 
@@ -173,32 +173,32 @@ FFmpegKit (arthenica/ffmpeg-kit)
 swift-log (apple/swift-log)
 ```
 
-⊥ SQLite.swift — no SQLite anywhere.
+⊥ SQLite.swift: no SQLite anywhere.
 
 ## §V
 
 V1:  video out → HEVC Main10, 10-bit, `.mov` (qt brand), 3840×2160, SDR bt709
-V2:  video out → `-tag:v hvc1` (≠ `hev1`) — QuickTime compat
+V2:  video out → `-tag:v hvc1` (≠ `hev1`): QuickTime compat
 V3:  video out → ⊥ audio tracks (`-an`)
 V4:  pre-inject → `AVURLAsset(url).load(.isPlayable) == true` else reject
 V5:  writes ∈ `~/Library/Application Support/com.apple.wallpaper/aerials/`, ⊥ `/Library/`, ⊥ `/System/Library/`
-V6:  ⊥ root, ⊥ SMAppService, ⊥ XPC privileged helper — all ops as login user
+V6:  ⊥ root, ⊥ SMAppService, ⊥ XPC privileged helper: all ops as login user
 V7:  asset UUID UPPERCASE, matches `entries.json:asset.id` ∧ `videos/<UUID>.mov` ∧ `thumbnails/<UUID>.png`
-V8:  ⊥ modify `TVIdleScreenStrings.bundle` (Apple-signed; modifications wiped on manifest re-pull)
-V9:  `localizedNameKey` = user-facing display name string verbatim (rendered literally on miss — V20 of v1 confirmed)
+V8:  ⊥ modify `TVIdleScreenStrings.bundle` (Apple-signed. Modifications wiped on manifest re-pull)
+V9:  `localizedNameKey` = user-facing display name string verbatim (rendered literally on miss: V20 of v1 confirmed)
 V10: `accessibilityLabel` set to same display name (VoiceOver), NOT the main UI label
-V11: `previewImage` URL → keep https:// to existing Apple asset (safe default) OR set to local `file://`; local `thumbnails/<id>.png` auto-discovered regardless
-V12: `url-4K-SDR-240FPS` URL → same; local `videos/<id>.mov` auto-discovered by UUID
+V11: `previewImage` URL → keep https:// to existing Apple asset (safe default) OR set to local `file://`. Local `thumbnails/<id>.png` auto-discovered regardless
+V12: `url-4K-SDR-240FPS` URL → same. Local `videos/<id>.mov` auto-discovered by UUID
 V13: ∀ AerialWall asset → injected with all 12 required fields (§I asset entry block)
 V14: entries.json write → atomic: write `<path>.tmp` + `rename(2)` to final, ⊥ partial-write
 V15: entries.json write → preserve top-level keys + ordering (`version`, `initialAssetCount`, `localizationVersion`, `assets`, `categories`) to minimize diff vs Apple-canonical
 V16: agent restart → `kill <pid>` SIGTERM. ⊥ `launchctl kickstart -k` (SIP exit 150, verified)
 V17: agent PID lookup → `launchctl list` parse, column 1 of row where column 3 == `com.apple.wallpaper.agent`
-V18: post-kill → wait ≤5s for new PID; verify via `launchctl list`
+V18: post-kill → wait ≤5s for new PID. Verify via `launchctl list`
 V19: persistence watch → FSEvents (`DispatchSource.makeFileSystemObjectSource`) on `entries.json` + `manifest.tar`, ⊥ polling
 V20: drift detection → @ event, load entries.json, ∃ AerialWall entry ∈ AerialWall manifest ∉ entries.json → re-inject all + restart agent
-V21: schema version probe @ launch → `entries.json.version != 1` → surface compat warning, ⊥ inject; track expected version in AerialWall manifest
-V22: AerialWall storage = `~/Library/Application Support/AerialWall/` (user-level, ⊥ `/Users/Shared` — no privilege boundary to cross)
+V21: schema version probe @ launch → `entries.json.version != 1` → surface compat warning, ⊥ inject. Track expected version in AerialWall manifest
+V22: AerialWall storage = `~/Library/Application Support/AerialWall/` (user-level, ⊥ `/Users/Shared`: no privilege boundary to cross)
 V23: encoder → `hevc_videotoolbox` primary, `libx265` fallback when VT unavailable
 V24: ⊥ AVPlayerLayer-over-transparent-NSWindow fake wallpaper
 V25: ⊥ `NSWorkspace.setDesktopImageURL` on raw `~/Library/Application Support/AerialWall/library/` path without prior entries.json injection
@@ -206,30 +206,30 @@ V26: ⊥ AppKit window-level tricks for lock screen drawing
 V27: custom category injection → optional. If used: new UUID, append to `entries.json:categories[]`, track in AerialWall manifest. Default behavior: reuse stock Landscapes category UUID (`A33A55D9-...`)
 V28: category mutation scope → AerialWall touches only categories it created (track in AerialWall manifest). ⊥ modify stock category entries
 V29: uninstall → strip AerialWall entries from `entries.json` (by AerialWall manifest UUID list), delete `videos/<UUID>.mov` + `thumbnails/<UUID>.png`, delete `~/Library/Application Support/AerialWall/`, unload LaunchAgent, restart `WallpaperAgent`
-V30: backup safety → before first inject, snapshot `entries.json` → `~/Library/Application Support/AerialWall/backups/entries.json.<ISO8601>.bak`; retain ≥3 most recent
-V31: hardlinking ⊥ used for injected `.mov` — always a real copy of transcoded output (originals may be at different paths; users may delete; refcount surprises break expectations)
+V30: backup safety → before first inject, snapshot `entries.json` → `~/Library/Application Support/AerialWall/backups/entries.json.<ISO8601>.bak`. Retain ≥3 most recent
+V31: hardlinking ⊥ used for injected `.mov`: always a real copy of transcoded output (originals may be at different paths. Users may delete. Refcount surprises break expectations)
 V32: UI colors → semantic only (`.primary`, `.secondary`, `.tertiary`, `Color(.windowBackgroundColor)`, `Color(.separatorColor)`, `Color(.textBackgroundColor)`, `.tint(Color.accentColor)`). ⊥ hardcoded hex anywhere
 V33: UI components → native AppKit/SwiftUI only. ⊥ custom titlebar, ⊥ hidden traffic lights, ⊥ custom progress indicators, ⊥ custom toasts/badges/sheets. Use `NSAlert`, `NSOpenPanel`, `ProgressView`, `ContentUnavailableView`, `Table`, `Form.formStyle(.grouped)`
 V34: only non-system UI tweak permitted = thumbnail corner radius 8pt. Everything else system-default
-V35: ⊥ helper-install onboarding step (no helper exists on Tahoe — V6). Onboarding shows only when `Constants.entriesJSONPath` is absent, & lists "Open System Settings → Wallpaper" steps
+V35: ⊥ helper-install onboarding step (no helper exists on Tahoe: V6). Onboarding shows only when `Constants.entriesJSONPath` is absent, & lists "Open System Settings → Wallpaper" steps
 V36: user-facing path text → `~/Library/Application Support/AerialWall/...` (V22). ⊥ "/Users/Shared/AerialWall/..." in any UI string
 V37: subprocess pipes (`stdout` & `stderr`) → drain continuously via `FileHandle.readabilityHandler`. ⊥ accumulate to EOF without reading (kernel pipe buffer ~64KB → blocking write deadlock on chatty subprocesses like ffmpeg)
 V38: subprocesses with tty-aware interactive input (ffmpeg, top, less, …) → must be invoked with their non-interactive flag (`-nostdin` for ffmpeg). Without it, the child calls `tcsetattr` on stdin and blocks in `ioctl` when stdin is a pipe / no controlling tty
 V39: SPM-launched SwiftUI executable → MUST register `NSApplicationDelegateAdaptor` whose `applicationDidFinishLaunching` calls `NSApp.setActivationPolicy(.regular)` + `NSApp.activate(ignoringOtherApps: true)`. Without it, the app launches as a UIElement-style background process, sheet windows never become key, and TextField inside a sheet silently drops clicks/keypresses (B11)
-V40: AerialWall assets → use `Constants.AerialWallCategory.{categoryID,subcategoryID}` (V27). On every inject, pass `ensureCategory:` to `InjectionEngine.inject` — the engine appends our top-level category to `entries.json:categories[]` if absent, idempotent. ⊥ inject under a stock category UUID
-V41: `entries.json` asset URL fields (`previewImage`, `url-4K-SDR-240FPS`) → `https://` scheme, shape `https://sylvan.apple.com/aerialwall/<UUID>/...`. ⊥ `file://` — wallpaper runtime accepts file:// for initial selection but rejects it on unlock-rebind & falls back to gray. Local files auto-discovered by UUID convention at `videos/<UUID>.mov` / `thumbnails/<UUID>.png` regardless of URL value
+V40: AerialWall assets → use `Constants.AerialWallCategory.{categoryID,subcategoryID}` (V27). On every inject, pass `ensureCategory:` to `InjectionEngine.inject`: the engine appends our top-level category to `entries.json:categories[]` if absent, idempotent. ⊥ inject under a stock category UUID
+V41: `entries.json` asset URL fields (`previewImage`, `url-4K-SDR-240FPS`) → `https://` scheme, shape `https://sylvan.apple.com/aerialwall/<UUID>/...`. ⊥ `file://`: wallpaper runtime accepts file:// for initial selection but rejects it on unlock-rebind & falls back to gray. Local files auto-discovered by UUID convention at `videos/<UUID>.mov` / `thumbnails/<UUID>.png` regardless of URL value
 V42: `entries.json` asset shape → match Apple stock pattern on numeric/bool fields: `preferredOrder` = small positive int, `includeInShuffle` = true, `showInTopLevel` = true. Conservative emulation reduces runtime contract surface
-V43: AerialWall custom category & subcategory `representativeAssetID` MUST always point to a currently-existing asset in `entries.json:assets[]`. ⊥ dangling rep → `WallpaperAerialsExtension` validation fails wholesale & every aerial category vanishes from System Settings UI (not just ours). Maintained by: `InjectionEngine.inject(_:upsertCategory:)` refreshes rep+previewImage on every insert; `InjectionEngine.remove(_:from:maintaining:)` reassigns rep to a remaining asset, or strips the custom category if no assets remain. Stock Apple categories (§I) never modified (V28)
+V43: AerialWall custom category & subcategory `representativeAssetID` MUST always point to a currently-existing asset in `entries.json:assets[]`. ⊥ dangling rep → `WallpaperAerialsExtension` validation fails wholesale & every aerial category vanishes from System Settings UI (not just ours). Maintained by: `InjectionEngine.inject(_:upsertCategory:)` refreshes rep+previewImage on every insert. `InjectionEngine.remove(_:from:maintaining:)` reassigns rep to a remaining asset, or strips the custom category if no assets remain. Stock Apple categories (§I) never modified (V28)
 V44: transcoded `.mov` first-frame PTS MUST equal 0. VT/source delay can yield a 1-frame `start_time` offset (~33ms @ 30fps). `WallpaperAerialsExtension` seeks to t=0 for the unlock-fade still frame & finds no frame there → gray fallback (B14). Enforced by appending `setpts=PTS-STARTPTS` to the `-vf` filter chain + `-muxdelay 0 -muxpreload 0` muxer flags. Verified post-transcode via ffprobe `start_time == 0`
-V45: reverted — 240fps frame-duplication didn't fix unlock-gray, made transcode ~5× slower (30+ min on real 4K content)
-V46: transcoded `.mov` MUST include B-frames. Apple stock encodes have `has_b_frames=4`; VT defaults to 0. Pass `-bf 4 -refs 4` to ffmpeg — VT honors the option (with its own cap, observed 2) which yields a non-zero `has_b_frames` in ffprobe. Conjecture (untested): the unlock-fade still-frame extraction prefers an I-frame after a B-frame group; pure all-I/P timelines may miss the lookback window. Verified post-transcode via ffprobe `has_b_frames > 0`
-V47: reverted (libx265 path) — also failed unlock-rebind. ffmpeg's `hevc_videotoolbox` wrapper failed because it doesn't expose VT's `kVTCompressionPropertyKey_BaseLayerFrameRate`. libx265 failed because no public x265 flag produces enough HEVC temporal sub-layers. Resolution: V48
-V48: TranscodeEngine is **pure native** — `AVURLAsset` + `AVVideoComposition.Configuration` (scale/pad/color/orientation) + `AVAssetWriter` w/ VideoToolbox HEVC encoder driven by `kVTCompressionPropertyKey_BaseLayerFrameRate`. WallpaperAerialsExtension's `video-sample-reader` filters by HEVC `temporal_id`; single-layer encodes get every frame skipped → wallpaper purged (B17). ⊥ ffmpeg in runtime pipeline (only used in tests for testsrc synthesis). WebM container inputs fail at `loadTracks` (AVAssetReader doesn't support WebM on Tahoe) — surfaced as `TranscodeError.inputFormatUnsupported`.
-V50: reverted. A/B/C/D variant test (Apple Tahoe Day source, 60s, 4 variants) showed: Tests A+D (single-layer, 0 and 1) failed unlock. Tests B+C (2-layer and 4-layer) both worked end-to-end including desktop apply. Conclusion: **2-layer is sufficient** for all render paths. The "level 3 reader needs temporal_id ≥ 3" hypothesis was wrong — reader is happy with temporal_id ≥ 1. B19's 2880p + 4-layer config was unnecessary. Reverted to V48 (4K + `BaseLayerFrameRate=srcFps/2`). See B20.
+V45: reverted: 240fps frame-duplication didn't fix unlock-gray, made transcode ~5× slower (30+ min on real 4K content)
+V46: transcoded `.mov` MUST include B-frames. Apple stock encodes have `has_b_frames=4`. VT defaults to 0. Pass `-bf 4 -refs 4` to ffmpeg: VT honors the option (with its own cap, observed 2) which yields a non-zero `has_b_frames` in ffprobe. Conjecture (untested): the unlock-fade still-frame extraction prefers an I-frame after a B-frame group. Pure all-I/P timelines may miss the lookback window. Verified post-transcode via ffprobe `has_b_frames > 0`
+V47: reverted (libx265 path): also failed unlock-rebind. ffmpeg's `hevc_videotoolbox` wrapper failed because it doesn't expose VT's `kVTCompressionPropertyKey_BaseLayerFrameRate`. libx265 failed because no public x265 flag produces enough HEVC temporal sub-layers. Resolution: V48
+V48: TranscodeEngine is **pure native**: `AVURLAsset` + `AVVideoComposition.Configuration` (scale/pad/color/orientation) + `AVAssetWriter` w/ VideoToolbox HEVC encoder driven by `kVTCompressionPropertyKey_BaseLayerFrameRate`. WallpaperAerialsExtension's `video-sample-reader` filters by HEVC `temporal_id`. Single-layer encodes get every frame skipped → wallpaper purged (B17). ⊥ ffmpeg in runtime pipeline (only used in tests for testsrc synthesis). WebM container inputs fail at `loadTracks` (AVAssetReader doesn't support WebM on Tahoe): surfaced as `TranscodeError.inputFormatUnsupported`.
+V50: reverted. A/B/C/D variant test (Apple Tahoe Day source, 60s, 4 variants) showed: Tests A+D (single-layer, 0 and 1) failed unlock. Tests B+C (2-layer and 4-layer) both worked end-to-end including desktop apply. Conclusion: **2-layer is sufficient** for all render paths. The "level 3 reader needs temporal_id ≥ 3" hypothesis was wrong: reader is happy with temporal_id ≥ 1. B19's 2880p + 4-layer config was unnecessary. Reverted to V48 (4K + `BaseLayerFrameRate=srcFps/2`). See B20.
 V51: Structured logging via `os.Logger`, subsystem `com.aerialwall.kit`, one category per engine (`injection`, `transcode`, `agent`, `watcher`, `setter`, `backup`, `manifest`). Inspect live via Console.app `subsystem == com.aerialwall.kit`. ⊥ `print` for diagnostic output in `AerialWallKit`.
-V52: Every public `Error` type in `AerialWallKit` MUST conform to `LocalizedError` with an actionable `errorDescription` aimed at the end user (not the developer). UI surfaces `(error as? LocalizedError)?.errorDescription ?? "\(error)"` — without conformance, the user sees raw enum-case syntax. Conformance lives in `AerialErrors+Localized.swift` (centralised), except `TranscodeError` and `WallpaperSetterError` whose conformance is co-located with the enum.
+V52: Every public `Error` type in `AerialWallKit` MUST conform to `LocalizedError` with an actionable `errorDescription` aimed at the end user (not the developer). UI surfaces `(error as? LocalizedError)?.errorDescription ?? "\(error)"`: without conformance, the user sees raw enum-case syntax. Conformance lives in `AerialErrors+Localized.swift` (centralised), except `TranscodeError` and `WallpaperSetterError` whose conformance is co-located with the enum.
 V53: `WallpaperSetter.apply` MUST clear `Index.plist:Displays` and `Index.plist:Spaces` (per-monitor and per-Space override dicts) before writing. Leaving them populated causes external monitors and other Mission Control spaces to retain the previous wallpaper. The `AllSpacesAndDisplays` block only takes effect when no per-display/per-Space overrides exist.
-V54: App icon source is `Assets/Icon.icon` (Apple Icon Composer format, macOS 26+). Compiled by `xcrun actool` to `Icon.icns` + `Assets.car`, bundled into `Sources/AerialWall/Resources/` (for `swift run`) and `AerialWall.app/Contents/Resources/` (for bundle use). The current `icon.json` has only the light-color appearance — dark and Liquid Glass appearance variants must be designed in the Icon Composer GUI at `/Applications/Xcode.app/Contents/Applications/Icon Composer.app` (the JSON serialization for multi-appearance is undocumented and hand-editing did not produce DarkAqua renditions). Regenerate with `scripts/regen-icon.sh` after any GUI edit. TODO: design dark + tinted + clear variants in Icon Composer.
+V54: App icon source is `Assets/Icon.icon` (Apple Icon Composer format, macOS 26+). Compiled by `xcrun actool` to `Icon.icns` + `Assets.car`, bundled into `Sources/AerialWall/Resources/` (for `swift run`) and `AerialWall.app/Contents/Resources/` (for bundle use). The current `icon.json` has only the light-color appearance: dark and Liquid Glass appearance variants must be designed in the Icon Composer GUI at `/Applications/Xcode.app/Contents/Applications/Icon Composer.app` (the JSON serialization for multi-appearance is undocumented and hand-editing did not produce DarkAqua renditions). Regenerate with `scripts/regen-icon.sh` after any GUI edit. TODO: design dark + tinted + clear variants in Icon Composer.
 
 ## §T
 

@@ -4,10 +4,10 @@
 
 | Branch | Purpose |
 |---|---|
-| `develop` | Active development — default branch |
+| `develop` | Active development: default branch |
 | `beta/vX.Y.Z` | Beta stabilisation cut from `develop` |
-| `release/vX.Y.Z` | Release candidate; merges to `main` on publish |
-| `main` | Always-stable; only merged from `release/*` |
+| `release/vX.Y.Z` | Release candidate. Merges to `main` on publish |
+| `main` | Always-stable. Only merged from `release/*` |
 
 Open PRs against **`develop`** unless explicitly told otherwise.
 
@@ -19,7 +19,7 @@ AerialWall uses a lightweight SDD (spec-driven development) loop:
 2. If behaviour changes, update or add a `§V` invariant
 3. If a bug is fixed, add a `§B` entry and the invariant that would have
    caught it earlier
-4. Run `swift test` — all 62 tests must pass
+4. Run `swift test`: all 62 tests must pass
 
 ## Running locally
 
@@ -34,11 +34,11 @@ swift test               # runs the test suite
 
 ## Code style
 
-- Swift 6 strict concurrency — no `@preconcurrency` unless justified
-- No hardcoded hex colours — use `Color(.windowBackgroundColor)` etc. (V32)
+- Swift 6 strict concurrency: no `@preconcurrency` unless justified
+- No hardcoded hex colours: use `Color(.windowBackgroundColor)` etc. (V32)
 - All paths through `Constants.*` (V5, V22)
 - Atomic writes for `entries.json` via `Data.write(.atomic)` (V14)
-- No ffmpeg in the production runtime path (V47/V48 — native VT only)
+- No ffmpeg in the production runtime path (V47/V48: native VT only)
 
 ## PR checklist
 

@@ -1,4 +1,4 @@
-# AerialWall — GUI/UX Specification (Native-First)
+# AerialWall: GUI/UX Specification (Native-First)
 
 > Authoritative for UI work (T12, T13, T15 UX surfaces). Pairs with `SPEC.md`.
 > The §Tahoe reconciliation appendix at the bottom of this file overrides items
@@ -8,17 +8,17 @@
 
 Build AerialWall as a **first-class macOS citizen**. Use native AppKit/SwiftUI controls, system colors, and standard layouts throughout. The goal is an app that:
 
-1. Looks correct on macOS today and **automatically looks correct** after future OS redesigns — no manual tweaks needed.
+1. Looks correct on macOS today and **automatically looks correct** after future OS redesigns: no manual tweaks needed.
 2. Borrows structural simplicity from **GNOME HIG** (single primary window, progressive disclosure, clear primary action, no modal clutter).
 3. Has zero custom chrome except minor polish tweaks (thumbnail radius, row sizing).
 
-**References to feel like**: Photos, Pastel, Sequel Pro, GNOME's Loupe or Solanum — utilitarian and considered, not "designed".
+**References to feel like**: Photos, Pastel, Sequel Pro, GNOME's Loupe or Solanum: utilitarian and considered, not "designed".
 
 **DO NOT**:
 - Custom title bar or hidden traffic lights
-- Hardcoded hex colors anywhere — use semantic `NSColor` / SwiftUI `.primary`, `.secondary`, `Color(.windowBackgroundColor)` etc.
+- Hardcoded hex colors anywhere: use semantic `NSColor` / SwiftUI `.primary`, `.secondary`, `Color(.windowBackgroundColor)` etc.
 - Custom animations beyond what SwiftUI/AppKit provides by default
-- Custom progress indicators, toasts, or status badges — use system equivalents
+- Custom progress indicators, toasts, or status badges: use system equivalents
 - Reinvent NSAlert, NSOpenPanel, NSProgressIndicator
 
 ***
@@ -76,7 +76,7 @@ Section("System") {
 
 - Selection drives the content area.
 - Badge on "All Wallpapers" shows count using `.badge(count)` modifier.
-- No custom colors, no custom fonts — pure system sidebar rendering.
+- No custom colors, no custom fonts: pure system sidebar rendering.
 
 ***
 
@@ -106,7 +106,7 @@ No custom drawn items.
 
 ***
 
-## Library View (content area — "All Wallpapers")
+## Library View (content area: "All Wallpapers")
 
 ### Option A: Grid (if ≤ ~50 wallpapers expected)
 
@@ -166,7 +166,7 @@ Table(wallpapers, selection: $selectedID, sortOrder: $sortOrder) {
 
 Table gives you free: column resizing, sort by column header, keyboard navigation, accessibility, and row selection.
 
-**StatusBadge**: just a `Text` with `.foregroundStyle(color)` — no custom capsule, no background:
+**StatusBadge**: just a `Text` with `.foregroundStyle(color)`: no custom capsule, no background:
 ```swift
 // Applied:  "● Applied"   .foregroundStyle(.green)
 // Pending:  "Not applied" .foregroundStyle(.secondary)
@@ -222,7 +222,7 @@ ContentUnavailableView(
 }
 ```
 
-This is a fully native component — correct spacing, correct typography, correct icon sizing, localization-ready.
+This is a fully native component: correct spacing, correct typography, correct icon sizing, localization-ready.
 
 ***
 
@@ -346,7 +346,7 @@ Rename: inline edit (double-click the name label) or via context menu → standa
 }
 ```
 
-Standard NSAlert maps to these automatically. Stick to .alert — no custom error sheets.
+Standard NSAlert maps to these automatically. Stick to .alert: no custom error sheets.
 
 ***
 
@@ -442,7 +442,7 @@ No custom terminal styling. `.textBackgroundColor` + SF Mono + system semantic c
 
 ***
 
-## Onboarding (first launch — sheet)
+## Onboarding (first launch: sheet)
 
 One-time sheet presented on first launch over the main window:
 
@@ -494,7 +494,7 @@ One-time sheet presented on first launch over the main window:
 ```
 
 `OnboardingStep` is a plain HStack: step number in a circle (using `.background(Circle()...)`), title + detail as VStack, checkmark when done (SF Symbol `checkmark.circle.fill`, `.tint(.green)`), optional button.
-Standard SwiftUI — no custom components beyond layout.
+Standard SwiftUI: no custom components beyond layout.
 
 ***
 
@@ -543,29 +543,29 @@ Cmd+Shift+F    Show in Finder
 
 ## The One Non-Native Tweak Allowed
 
-**Thumbnail corner radius** — system `NSImageView` defaults to 0; set `cornerRadius = 8` and `wantsLayer = true`. That's it. Everything else system-default.
+**Thumbnail corner radius**: system `NSImageView` defaults to 0. Set `cornerRadius = 8` and `wantsLayer = true`. That's it. Everything else system-default.
 
 ***
 
 ## Implementation notes
 
-- Use `Color(.windowBackgroundColor)`, `Color(.controlBackgroundColor)`, `Color(.separatorColor)`, `.primary`, `.secondary`, `.tertiary` — never hardcoded hex.
-- Use `.tint(Color.accentColor)` for interactive highlights; system accent is user-configurable in System Settings.
+- Use `Color(.windowBackgroundColor)`, `Color(.controlBackgroundColor)`, `Color(.separatorColor)`, `.primary`, `.secondary`, `.tertiary`: never hardcoded hex.
+- Use `.tint(Color.accentColor)` for interactive highlights. System accent is user-configurable in System Settings.
 - Use `.controlSize(.small)` on progress indicators and compact UI elements.
-- Use `Table` over custom grids wherever possible — free accessibility, sorting, and keyboard nav.
+- Use `Table` over custom grids wherever possible: free accessibility, sorting, and keyboard nav.
 - Use `ContentUnavailableView` for empty states (macOS 14+), `@available` fallback for older.
 - App target: macOS 14+ minimum. No backward compat hacks needed for any of the above.
-- Sandbox: **disabled** (required for `/Library` writes — document this clearly in the README).
+- Sandbox: **disabled** (required for `/Library` writes: document this clearly in the README).
 
 ***
 
 ## §Tahoe reconciliation (overrides above where they conflict with SPEC.md v2)
 
 The base spec above was written before the live `entries.json` probe revealed
-the Tahoe user-level model. The following overrides apply; everything else
+the Tahoe user-level model. The following overrides apply. Everything else
 stands.
 
-### R1 — Privileged helper does not exist on Tahoe
+### R1: Privileged helper does not exist on Tahoe
 
 Writes go to `~/Library/...` as the login user. No SMAppService helper, no XPC,
 no password prompt. Affected:
@@ -573,41 +573,41 @@ no password prompt. Affected:
 - **Onboarding sheet**: drop step 1 ("Install privileged helper"). Renumber:
   - step 1 (was 2): "Download an Apple wallpaper video"
   - step 2 (was 3): "Set that Apple video as your wallpaper"
-  - (and even those become *optional* — `entries.json` is shipped pre-populated
+  - (and even those become *optional*: `entries.json` is shipped pre-populated
     by `manifest.tar` on first login, so a fresh install can usually skip both.
     Show the onboarding only if `Constants.entriesJSONPath` is absent.)
 - **Apply wallpaper §step 2**: drop "If privileged helper not installed yet → NSAlert".
-  No alert; just call the local injection path.
+  No alert. Just call the local injection path.
 - **"AerialWall needs permission" alert**: remove entirely.
 - **Settings → General → "Start helper at login"**: replace with
   **"Start watcher at login"** (the AerialWallAgent LaunchAgent, user-domain).
 
-### R2 — Storage path references
+### R2: Storage path references
 
 User-facing text mentions `/Users/Shared/AerialWall/Library`. Replace ∀ with
 `~/Library/Application Support/AerialWall/library/` (SPEC §I, V22).
 
-### R3 — Settings → Advanced "Base Apple asset" picker
+### R3: Settings → Advanced "Base Apple asset" picker
 
 Obsolete model (slot-hooking an existing Apple asset). On Tahoe we append a
 fresh entry to `entries.json` directly. **Drop the entire Advanced section** or
-repurpose it for FFmpeg path override (`AERIALWALL_FFMPEG`) — see SPEC T5.
+repurpose it for FFmpeg path override (`AERIALWALL_FFMPEG`): see SPEC T5.
 
-### R4 — Deployment target
+### R4: Deployment target
 
 GUI spec says "macOS 14+ minimum". SPEC §C is **macOS 26 (Tahoe) ≥ 26.4 only**.
 All GUI components used here (`NavigationSplitView`, `Table`,
 `ContentUnavailableView`, `.formStyle(.grouped)`, `MenuBarExtra`,
 `@Observable`) are available on 26+.
 
-### R5 — Sandbox justification
+### R5: Sandbox justification
 
 README must say: sandbox is disabled because the wallpaper aerials directory
 (`~/Library/Application Support/com.apple.wallpaper/aerials/`) is **outside the
 sandbox container** even though it lives under `~/Library/`. There is no `/Library/`
-write requirement — that was the macOS-15 model.
+write requirement: that was the macOS-15 model.
 
-### R6 — Daemon status surface
+### R6: Daemon status surface
 
 GUI spec references "daemonStatusLabel" / "daemonStatusIcon" in the MenuBarExtra.
 The only relevant daemon is `com.apple.wallpaper.agent` (SPEC §I). The label
@@ -617,4 +617,4 @@ should reflect whether `AgentRestart.findAgentPID()` returns a PID:
 - missing: red dot, "WallpaperAgent not running"
 
 There's also a second daemon to surface: the **AerialWall** LaunchAgent
-(`com.aerialwall.agent`) — `.green` when loaded, `.orange` when not.
+(`com.aerialwall.agent`): `.green` when loaded, `.orange` when not.
